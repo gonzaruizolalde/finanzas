@@ -158,9 +158,77 @@
   /* Chart container */
   .chart-container { position: relative; width: 100%; }
 
+  /* Bottom nav mobile */
+  .bottom-nav { display: none; }
+
   @media (max-width: 900px) {
     .grid-4 { grid-template-columns: 1fr 1fr; }
     .grid-3 { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 16px 12px 90px; }
+
+    .bottom-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      z-index: 200;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .bottom-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 4px 8px;
+      cursor: pointer;
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 500;
+      gap: 3px;
+      transition: color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .bottom-nav-item .bn-icon { font-size: 18px; line-height: 1; }
+    .bottom-nav-item.active { color: var(--accent); }
+
+    .page-header { flex-direction: column; gap: 12px; margin-bottom: 16px; }
+    .page-header > div:last-child { width: 100%; }
+    .page-title { font-size: 22px; }
+
+    .month-nav { justify-content: space-between; width: 100%; }
+    .month-nav span { flex: 1; text-align: center; }
+
+    .grid-4 { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+    .grid-3 { grid-template-columns: 1fr; gap: 12px; }
+
+    .card { padding: 14px; }
+    .card-value { font-size: 20px; }
+
+    .toast { bottom: 80px; right: 12px; left: 12px; text-align: center; }
+
+    .modal { width: 100%; max-width: 100%; max-height: 85vh; border-radius: var(--radius) var(--radius) 0 0; position: fixed; bottom: 0; left: 0; right: 0; margin: 0; }
+    .modal-overlay.open { align-items: flex-end; }
+
+    .form-row { grid-template-columns: 1fr; }
+
+    .chip-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+    .chip-row::-webkit-scrollbar { display: none; }
+
+    table thead th:nth-child(4),
+    table thead th:nth-child(5),
+    table thead th:nth-child(6),
+    table tbody td:nth-child(4),
+    table tbody td:nth-child(5),
+    table tbody td:nth-child(6) { display: none; }
+
+    .flex-between { flex-wrap: wrap; gap: 8px; }
   }
 </style>
 </head>
@@ -187,6 +255,30 @@
     </div>
     <div class="nav-item" onclick="showPage('metas')">
       <span class="nav-icon">◎</span> Metas
+    </div>
+  </nav>
+
+  <!-- Bottom nav (mobile only) -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <div class="bottom-nav-item active" onclick="showPage('dashboard')">
+      <span class="bn-icon">▦</span>
+      <span>Inicio</span>
+    </div>
+    <div class="bottom-nav-item" onclick="showPage('transacciones')">
+      <span class="bn-icon">⇅</span>
+      <span>Movimientos</span>
+    </div>
+    <div class="bottom-nav-item" onclick="showPage('proyeccion')">
+      <span class="bn-icon">◷</span>
+      <span>Cuotas</span>
+    </div>
+    <div class="bottom-nav-item" onclick="showPage('presupuestos')">
+      <span class="bn-icon">◈</span>
+      <span>Presupuesto</span>
+    </div>
+    <div class="bottom-nav-item" onclick="showPage('metas')">
+      <span class="bn-icon">◎</span>
+      <span>Metas</span>
     </div>
   </nav>
 
@@ -658,6 +750,13 @@ function showPage(id) {
     n.classList.remove('active');
     if (n.textContent.trim() === map[id]) n.classList.add('active');
   });
+  // Sync bottom nav
+  const pageOrder = ['dashboard','transacciones','proyeccion','presupuestos','metas'];
+  document.querySelectorAll('.bottom-nav-item').forEach((el, i) => {
+    el.classList.toggle('active', pageOrder[i] === id);
+  });
+  // Scroll to top on page change (mobile)
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   refreshAll();
 }
 
