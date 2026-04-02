@@ -1,5 +1,6 @@
 import os
-import bcrypt
+import hashlib
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -14,13 +15,31 @@ ALGORITHM   = "HS256"
 EXPIRE_DAYS = int(os.getenv("ACCESS_TOKEN_EXPIRE_DAYS", 7))
 
 
-# ── Passwords ─────────────────────────────────────────────────────────────────
+# ── Passwords (usando hashlib nativo — sin dependencias externas) ─────────────
 
 def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    # Genera un salt aleatorio de 32 bytes
+    salt = secrets.token_hex(32)
+    hashed = hashlib.pbkdf2_hmac(
+        "sha256",
+        plain.encode("utf-8"),
+        salt.encode("utf-8"),
+        iterations=260000
+    ).hex()
+    return f"{salt}${hashed}"
 
-def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+def verify_password(plain: str, stored: str) -> bool:
+    try:
+        salt, hashed = stored.split("$")
+        new_hash = hashlib.pbkdf2_hmac(
+            "sha256",
+            plain.encode("utf-8"),
+            salt.encode("utf-8"),
+            iterations=260000
+        ).hex()
+        return secrets.compare_digest(new_hash, hashed)
+    except Exception:
+        return False
 
 
 # ── Tokens ────────────────────────────────────────────────────────────────────
