@@ -1,9 +1,9 @@
 import os
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, Cookie
 from sqlalchemy.orm import Session
 
@@ -13,17 +13,14 @@ SECRET_KEY  = os.getenv("SECRET_KEY", "cambia-esto-en-produccion-usa-openssl-ran
 ALGORITHM   = "HS256"
 EXPIRE_DAYS = int(os.getenv("ACCESS_TOKEN_EXPIRE_DAYS", 7))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 # ── Passwords ─────────────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    # bcrypt tiene un límite de 72 bytes — truncamos para evitar error en Vercel
-    return pwd_context.hash(plain.encode("utf-8")[:72])
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain.encode("utf-8")[:72], hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 # ── Tokens ────────────────────────────────────────────────────────────────────
