@@ -19,10 +19,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ── Passwords ─────────────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    # bcrypt tiene un límite de 72 bytes — truncamos para evitar error en Vercel
+    return pwd_context.hash(plain.encode("utf-8")[:72])
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(plain.encode("utf-8")[:72], hashed)
 
 
 # ── Tokens ────────────────────────────────────────────────────────────────────
