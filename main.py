@@ -3,7 +3,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime, timedelta
 import os
+import httpx
 
 from database import create_tables, get_db, Transaction, Budget, Goal, Card, User
 from schemas import (
@@ -25,6 +27,27 @@ app = FastAPI(title="Finanzas Personales API", version="2.0.0")
 @app.get("/", response_class=FileResponse)
 def serve_frontend():
     return FileResponse("static/index.html")
+
+
+# ── Dólar ────────────────────────────────────────────────────────────────────
+
+_dolar_cache = {"data": None, "expires": datetime.utcnow()}
+
+@app.get("/api/dolar")
+def get_dolar():
+    global _dolar_cache
+    now = datetime.utcnow()
+    if _dolar_cache["data"] and now < _dolar_cache["expires"]:
+        return _dolar_cache["data"]
+    try:
+        response = httpx.get("https://dolarapi.com/v1/dolares", timeout=5)
+        data = response.json()
+        _dolar_cache = {"data": data, "expires": now + timedelta(minutes=15)}
+        return data
+    except Exception:
+        if _dolar_cache["data"]:
+            return _dolar_cache["data"]
+        raise HTTPException(503, "No se pudo obtener el tipo de cambio")
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
