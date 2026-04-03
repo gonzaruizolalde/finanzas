@@ -194,10 +194,9 @@
   .import-row-err { background: var(--red-light); }
   .import-row-err td { color: var(--red); }
   .import-summary { font-size: 12px; color: var(--text2); margin-top: 10px; padding: 8px 12px; background: var(--surface2); border-radius: var(--radius-sm); }
-  .export-option { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
-  .export-option label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-  .export-range { display: flex; gap: 8px; margin-top: 4px; }
-  .export-range input { flex: 1; }
+  .export-radio-item { display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; transition:background 0.15s; margin-bottom:6px; }
+  .export-radio-item:hover { background:var(--bg); }
+  .export-radio-item input[type=radio] { margin-top:2px; flex-shrink:0; accent-color:var(--accent); width:16px; height:16px; cursor:pointer; }
 
   /* Dólar bar */
   .dolar-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
@@ -990,20 +989,43 @@
 <div class="modal-overlay" id="modal-export">
   <div class="modal">
     <div class="modal-title">Exportar transacciones</div>
-    <div class="export-option">
-      <label><input type="radio" name="export-range" value="month" checked onchange="toggleExportRange()"> Mes actual (<span id="export-month-label"></span>)</label>
-      <label><input type="radio" name="export-range" value="range" onchange="toggleExportRange()"> Rango de fechas</label>
-      <div id="export-range-inputs" class="export-range" style="display:none;">
-        <div class="form-group" style="margin:0;flex:1;">
-          <label>Desde</label>
-          <input type="date" id="export-from">
-        </div>
-        <div class="form-group" style="margin:0;flex:1;">
-          <label>Hasta</label>
-          <input type="date" id="export-to">
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">
+
+      <div class="export-radio-item" onclick="document.getElementById('er-month').click()">
+        <input type="radio" id="er-month" name="export-range" value="month" checked onchange="toggleExportRange()">
+        <div>
+          <div style="font-size:13px;font-weight:500;">Mes actual</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:1px;" id="export-month-label"></div>
         </div>
       </div>
-      <label><input type="radio" name="export-range" value="all" onchange="toggleExportRange()"> Todo el historial</label>
+
+      <div class="export-radio-item" onclick="document.getElementById('er-range').click()">
+        <input type="radio" id="er-range" name="export-range" value="range" onchange="toggleExportRange()">
+        <div style="width:100%;">
+          <div style="font-size:13px;font-weight:500;">Rango de fechas</div>
+          <div id="export-range-inputs" style="display:none;margin-top:8px;">
+            <div style="display:flex;gap:8px;">
+              <div class="form-group" style="margin:0;flex:1;">
+                <label>Desde</label>
+                <input type="date" id="export-from" onclick="event.stopPropagation()">
+              </div>
+              <div class="form-group" style="margin:0;flex:1;">
+                <label>Hasta</label>
+                <input type="date" id="export-to" onclick="event.stopPropagation()">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="export-radio-item" onclick="document.getElementById('er-all').click()">
+        <input type="radio" id="er-all" name="export-range" value="all" onchange="toggleExportRange()">
+        <div>
+          <div style="font-size:13px;font-weight:500;">Todo el historial</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:1px;" id="export-all-count"></div>
+        </div>
+      </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-export')">Cancelar</button>
@@ -2244,9 +2266,13 @@ function toggleExportRange() {
 
 function openExportModal() {
   document.getElementById('export-month-label').textContent = MONTHS[currentMonth] + ' ' + currentYear;
+  document.getElementById('export-all-count').textContent = transactions.length + ' transacciones en total';
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('export-from').value = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-01`;
   document.getElementById('export-to').value = today;
+  // reset to first option
+  document.getElementById('er-month').checked = true;
+  document.getElementById('export-range-inputs').style.display = 'none';
   openModal('modal-export');
 }
 
