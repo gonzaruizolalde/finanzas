@@ -2276,8 +2276,7 @@ function doExportCSV() {
   const txs = getExportTxs();
   if (txs.length === 0) { toast('No hay transacciones para exportar'); return; }
   const rows = [CSV_HEADERS.join(','), ...txs.map(txToCSVRow)];
-  const blob = new Blob([rows.join('
-')], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([rows.join(String.fromCharCode(10))], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   const val  = document.querySelector('input[name="export-range"]:checked').value;
@@ -2302,8 +2301,7 @@ function downloadTemplate() {
     '2024-03-15,Supermercado,Alimentación,expense,cash,ARS,15000',
     '2024-03-20,Netflix,Entretenimiento,expense,credit,ARS,2500',
     '2024-03-01,Sueldo,Sueldo,income,none,ARS,350000',
-  ].join('
-');
+  ].join(String.fromCharCode(10));
   const blob = new Blob([example], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2357,8 +2355,7 @@ function previewCSV(input) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const lines = e.target.result.split('
-').map(l => l.trim()).filter(l => l);
+    const lines = e.target.result.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l);
     if (lines.length < 2) { toast('El archivo está vacío o no tiene datos'); return; }
 
     const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/\s/g,'_'));
