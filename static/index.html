@@ -184,6 +184,17 @@
   /* Chart container */
   .chart-container { position: relative; width: 100%; }
 
+  /* Dólar bar */
+  .dolar-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .dolar-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 12px; display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; transition:background 0.15s; }
+  .dolar-item:hover { background:var(--bg); }
+  .dolar-item.selected { border-color:var(--accent); background:var(--green-light); }
+  .dolar-nombre { font-weight:500; color:var(--text2); }
+  .dolar-compra { color:var(--green); font-weight:500; }
+  .dolar-venta  { color:var(--red);   font-weight:500; }
+  .dolar-sep    { color:var(--text3); font-size:10px; }
+  .dolar-loading { font-size:12px; color:var(--text3); padding:8px 0; }
+
   /* Bottom nav mobile */
   .bottom-nav { display: none; }
 
@@ -522,6 +533,8 @@
         </div>
       </div>
 
+      <div id="dolar-bar" class="dolar-bar"><span class="dolar-loading">Cargando cotizaciones...</span></div>
+
       <div class="grid-4">
         <div class="card">
           <div class="card-title">Ingresos</div>
@@ -537,6 +550,7 @@
           <div class="card-title">Balance</div>
           <div class="card-value" id="dash-balance">$0</div>
           <div class="card-sub" id="dash-balance-usd"></div>
+          <div class="card-sub" id="dash-balance-unified" style="margin-top:2px;"></div>
         </div>
         <div class="card">
           <div class="card-title">Cuotas pendientes</div>
@@ -963,6 +977,8 @@ let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let currentCatFilter = '';
 let chartCat, chartMonthly, chartProj;
+let dolarRates = {};
+let selectedRate = 'Blue';
 
 // ---- AUTH ----
 function showLoginScreen() {
@@ -1071,6 +1087,56 @@ let transactions = [];
 let budgets = [];
 let goals = [];
 let cards = [];
+
+// ---- DÓLAR ----
+async function loadDolar() {
+  try {
+    const data = await API.get('/api/dolar');
+    if (!data) return;
+    dolarRates = {};
+    data.forEach(d => { dolarRates[d.nombre] = d; });
+    renderDolarBar(data);
+    renderDashboard(); // re-render con cotizaciones cargadas
+  } catch(e) {
+    const el = document.getElementById('dolar-bar');
+    if (el) el.innerHTML = '<span class="dolar-loading">No se pudo cargar cotización</span>';
+  }
+}
+
+const DOLAR_TIPOS = ['Oficial', 'Blue', 'MEP', 'Contado con liquidación'];
+
+function renderDolarBar(data) {
+  const el = document.getElementById('dolar-bar');
+  if (!el) return;
+  const filtered = data.filter(r => DOLAR_TIPOS.includes(r.nombre));
+  el.innerHTML = filtered.map(r => `
+    <div class="dolar-item ${selectedRate === r.nombre ? 'selected' : ''}"
+         onclick="selectRate('${r.nombre}')">
+      <span class="dolar-nombre">${r.nombre === 'Contado con liquidación' ? 'CCL' : r.nombre}</span>
+      <span class="dolar-compra">$${r.compra}</span>
+      <span class="dolar-sep">/</span>
+      <span class="dolar-venta">$${r.venta}</span>
+    </div>`).join('');
+}
+
+function selectRate(nombre) {
+  selectedRate = nombre;
+  const rates = Object.values(dolarRates).filter(r => DOLAR_TIPOS.includes(r.nombre));
+  renderDolarBar(rates);
+  renderDashboard();
+}
+
+function convertToARS(usdAmount) {
+  const rate = dolarRates[selectedRate];
+  if (!rate || !rate.venta) return null;
+  return usdAmount * rate.venta;
+}
+
+function convertToUSD(arsAmount) {
+  const rate = dolarRates[selectedRate];
+  if (!rate || !rate.venta) return null;
+  return arsAmount / rate.venta;
+}
 
 async function loadAll() {
   [transactions, budgets, goals, cards] = await Promise.all([
@@ -1782,6 +1848,18 @@ function renderDashboard() {
   balEl.textContent = fmt(balARS);
   balEl.className = 'card-value ' + (balARS >= 0 ? 'positive' : 'negative');
   document.getElementById('dash-balance-usd').textContent = balUSD !== 0 ? fmt(balUSD,'USD') : '';
+  // Balance unificado ARS+USD
+  const usdEnARS = convertToARS(balUSD);
+  const unifiedEl = document.getElementById('dash-balance-unified');
+  if (unifiedEl) {
+    if (usdEnARS !== null && balUSD !== 0) {
+      const total = balARS + usdEnARS;
+      const rate = dolarRates[selectedRate];
+      unifiedEl.textContent = `≈ ${fmt(total)} · Dólar ${selectedRate === 'Contado con liquidación' ? 'CCL' : selectedRate} $${rate?.venta || '—'}`;
+    } else {
+      unifiedEl.textContent = '';
+    }
+  }
 
   // Cuotas next 3 months
   let cuotasARS = 0;
@@ -2110,6 +2188,7 @@ async function init() {
     await loadAll();
     document.querySelector('.main').style.opacity = '1';
     refreshAll();
+    loadDolar(); // carga asíncrona, no bloquea
   } catch(e) {
     showLoginScreen();
   }
