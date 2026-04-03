@@ -184,6 +184,21 @@
   /* Chart container */
   .chart-container { position: relative; width: 100%; }
 
+  /* Import / Export */
+  .import-preview { max-height: 320px; overflow-y: auto; margin-top: 12px; font-size: 12px; }
+  .import-preview table { width: 100%; border-collapse: collapse; }
+  .import-preview th { position: sticky; top: 0; background: var(--surface); padding: 6px 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); border-bottom: 1px solid var(--border); }
+  .import-preview td { padding: 6px 8px; border-bottom: 1px solid var(--surface2); }
+  .import-row-dup { background: var(--amber-light); }
+  .import-row-dup td { color: var(--amber); }
+  .import-row-err { background: var(--red-light); }
+  .import-row-err td { color: var(--red); }
+  .import-summary { font-size: 12px; color: var(--text2); margin-top: 10px; padding: 8px 12px; background: var(--surface2); border-radius: var(--radius-sm); }
+  .export-option { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+  .export-option label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  .export-range { display: flex; gap: 8px; margin-top: 4px; }
+  .export-range input { flex: 1; }
+
   /* Dólar bar */
   .dolar-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
   .dolar-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 12px; display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; transition:background 0.15s; }
@@ -596,6 +611,8 @@
             <span id="month-label-2"></span>
             <button onclick="changeMonth(1)">›</button>
           </div>
+          <button class="btn" onclick="openExportModal()">↓ Exportar</button>
+          <button class="btn" onclick="openModal('modal-import')">↑ Importar</button>
           <button class="btn btn-primary" onclick="openNewTx()">+ Nueva</button>
         </div>
       </div>
@@ -965,6 +982,70 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-goal-deposit')">Cancelar</button>
       <button class="btn btn-primary" onclick="depositGoal()">Aportar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Exportar CSV -->
+<div class="modal-overlay" id="modal-export">
+  <div class="modal">
+    <div class="modal-title">Exportar transacciones</div>
+    <div class="export-option">
+      <label><input type="radio" name="export-range" value="month" checked onchange="toggleExportRange()"> Mes actual (<span id="export-month-label"></span>)</label>
+      <label><input type="radio" name="export-range" value="range" onchange="toggleExportRange()"> Rango de fechas</label>
+      <div id="export-range-inputs" class="export-range" style="display:none;">
+        <div class="form-group" style="margin:0;flex:1;">
+          <label>Desde</label>
+          <input type="date" id="export-from">
+        </div>
+        <div class="form-group" style="margin:0;flex:1;">
+          <label>Hasta</label>
+          <input type="date" id="export-to">
+        </div>
+      </div>
+      <label><input type="radio" name="export-range" value="all" onchange="toggleExportRange()"> Todo el historial</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-export')">Cancelar</button>
+      <button class="btn btn-primary" onclick="doExportCSV()">↓ Descargar CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Importar CSV -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal" style="width:640px;">
+    <div class="modal-title">Importar transacciones</div>
+    <div id="import-step-upload">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+        El archivo debe estar en el mismo formato que exporta la app.<br>
+        Columnas: <code>fecha, descripcion, categoria, tipo, medio_pago, moneda, monto</code>
+      </p>
+      <div class="form-group">
+        <label>Archivo CSV</label>
+        <input type="file" id="import-file" accept=".csv" onchange="previewCSV(this)">
+      </div>
+      <a href="#" onclick="downloadTemplate(); return false;"
+         style="font-size:12px;color:var(--accent);">↓ Descargar plantilla de ejemplo</a>
+      <div id="import-preview-wrap" style="display:none;">
+        <div id="import-summary" class="import-summary"></div>
+        <div class="import-preview">
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="import-check-all" onchange="toggleAllImport(this.checked)"></th>
+                <th>Fecha</th><th>Descripción</th><th>Categoría</th>
+                <th>Tipo</th><th>Medio</th><th>Moneda</th><th>Monto</th><th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="import-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-import'); resetImport()">Cancelar</button>
+      <button class="btn btn-primary" id="import-confirm-btn" style="display:none;" onclick="confirmImport()">↑ Importar seleccionadas</button>
     </div>
   </div>
 </div>
@@ -2146,6 +2227,254 @@ function renderGoals() {
       <button class="btn btn-sm" onclick="openDeposit('${g.id}')">+ Aportar</button>
     </div>`;
   }).join('');
+}
+
+// ---- EXPORT CSV ----
+
+const CSV_HEADERS = ['fecha','descripcion','categoria','tipo','medio_pago','moneda','monto'];
+const VALID_CATS = ['Alimentación','Transporte','Salud','Entretenimiento','Ropa','Educación','Hogar','Servicios','Sueldo','Freelance','Otro'];
+const VALID_TIPOS = ['income','expense'];
+const VALID_MEDIOS = ['cash','debit','credit','none'];
+const VALID_MONEDAS = ['ARS','USD'];
+
+function toggleExportRange() {
+  const val = document.querySelector('input[name="export-range"]:checked').value;
+  document.getElementById('export-range-inputs').style.display = val === 'range' ? 'flex' : 'none';
+}
+
+function openExportModal() {
+  document.getElementById('export-month-label').textContent = MONTHS[currentMonth] + ' ' + currentYear;
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('export-from').value = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-01`;
+  document.getElementById('export-to').value = today;
+  openModal('modal-export');
+}
+
+function getExportTxs() {
+  const val = document.querySelector('input[name="export-range"]:checked').value;
+  if (val === 'month') return getMonthTx(currentMonth, currentYear);
+  if (val === 'all') return transactions;
+  const from = document.getElementById('export-from').value;
+  const to   = document.getElementById('export-to').value;
+  return transactions.filter(t => t.date >= from && t.date <= to);
+}
+
+function txToCSVRow(t) {
+  const medioLabel = t.payment === 'credit' ? 'credit' : t.payment === 'debit' ? 'debit' : t.payment === 'cash' ? 'cash' : 'none';
+  return [
+    t.date,
+    '"' + (t.desc || '').replace(/"/g, '""') + '"',
+    t.category,
+    t.type,
+    medioLabel,
+    t.currency,
+    t.amount
+  ].join(',');
+}
+
+function doExportCSV() {
+  const txs = getExportTxs();
+  if (txs.length === 0) { toast('No hay transacciones para exportar'); return; }
+  const rows = [CSV_HEADERS.join(','), ...txs.map(txToCSVRow)];
+  const blob = new Blob([rows.join('
+')], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const val  = document.querySelector('input[name="export-range"]:checked').value;
+  const name = val === 'month'
+    ? `finanzas_${MONTHS[currentMonth].toLowerCase()}_${currentYear}.csv`
+    : val === 'all' ? 'finanzas_historial.csv'
+    : `finanzas_${document.getElementById('export-from').value}_${document.getElementById('export-to').value}.csv`;
+  a.href = url; a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+  closeModal('modal-export');
+  toast(`${txs.length} transacciones exportadas ✓`);
+}
+
+// ---- IMPORT CSV ----
+
+let importRows = [];
+
+function downloadTemplate() {
+  const example = [
+    CSV_HEADERS.join(','),
+    '2024-03-15,Supermercado,Alimentación,expense,cash,ARS,15000',
+    '2024-03-20,Netflix,Entretenimiento,expense,credit,ARS,2500',
+    '2024-03-01,Sueldo,Sueldo,income,none,ARS,350000',
+  ].join('
+');
+  const blob = new Blob([example], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plantilla_finanzas.csv';
+  a.click();
+}
+
+function resetImport() {
+  importRows = [];
+  document.getElementById('import-file').value = '';
+  document.getElementById('import-preview-wrap').style.display = 'none';
+  document.getElementById('import-confirm-btn').style.display = 'none';
+  document.getElementById('import-tbody').innerHTML = '';
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; continue; }
+    cur += c;
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function isDuplicate(row) {
+  return transactions.some(t =>
+    t.date === row.fecha &&
+    t.desc.toLowerCase() === row.descripcion.toLowerCase() &&
+    Math.abs(t.amount - parseFloat(row.monto)) < 0.01
+  );
+}
+
+function validateRow(row, idx) {
+  const errors = [];
+  if (!row.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(row.fecha)) errors.push('fecha inválida');
+  if (!row.descripcion) errors.push('descripción vacía');
+  if (!VALID_CATS.includes(row.categoria)) errors.push('categoría inválida');
+  if (!VALID_TIPOS.includes(row.tipo)) errors.push('tipo inválido (income/expense)');
+  if (!VALID_MEDIOS.includes(row.medio_pago)) errors.push('medio inválido');
+  if (!VALID_MONEDAS.includes(row.moneda)) errors.push('moneda inválida (ARS/USD)');
+  if (isNaN(parseFloat(row.monto)) || parseFloat(row.monto) <= 0) errors.push('monto inválido');
+  return errors;
+}
+
+function previewCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('
+').map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) { toast('El archivo está vacío o no tiene datos'); return; }
+
+    const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/\s/g,'_'));
+    const expectedHeaders = CSV_HEADERS;
+    const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
+    if (missingHeaders.length > 0) {
+      toast('Columnas faltantes: ' + missingHeaders.join(', '));
+      return;
+    }
+
+    importRows = [];
+    let validCount = 0, dupCount = 0, errCount = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const vals = parseCSVLine(lines[i]);
+      const row = {};
+      headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+      const errors = validateRow(row, i);
+      const dup = errors.length === 0 && isDuplicate(row);
+      if (errors.length > 0) errCount++;
+      else if (dup) dupCount++;
+      else validCount++;
+      importRows.push({ row, errors, dup, selected: errors.length === 0 });
+    }
+
+    // Render preview table
+    const tbody = document.getElementById('import-tbody');
+    tbody.innerHTML = importRows.map((item, idx) => {
+      const { row, errors, dup, selected } = item;
+      const rowClass = errors.length > 0 ? 'import-row-err' : dup ? 'import-row-dup' : '';
+      const status = errors.length > 0
+        ? '⚠ ' + errors[0]
+        : dup ? '⚠ Duplicado' : '✓ Ok';
+      const disabled = errors.length > 0 ? 'disabled' : '';
+      return `<tr class="${rowClass}">
+        <td><input type="checkbox" ${selected?'checked':''} ${disabled}
+            onchange="importRows[${idx}].selected=this.checked; updateImportSummary()"></td>
+        <td>${escapeHtml(row.fecha)}</td>
+        <td>${escapeHtml(row.descripcion)}</td>
+        <td>${escapeHtml(row.categoria)}</td>
+        <td>${row.tipo==='income'?'Ingreso':'Gasto'}</td>
+        <td>${escapeHtml(row.medio_pago)}</td>
+        <td>${escapeHtml(row.moneda)}</td>
+        <td style="text-align:right;font-weight:500;">${fmt(parseFloat(row.monto)||0, row.moneda)}</td>
+        <td style="white-space:nowrap;">${status}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('import-preview-wrap').style.display = 'block';
+    document.getElementById('import-confirm-btn').style.display = 'inline-flex';
+    updateImportSummary();
+  };
+  reader.readAsText(file);
+}
+
+function updateImportSummary() {
+  const total    = importRows.length;
+  const selected = importRows.filter(r => r.selected).length;
+  const dups     = importRows.filter(r => r.dup).length;
+  const errors   = importRows.filter(r => r.errors.length > 0).length;
+  document.getElementById('import-summary').innerHTML =
+    `<strong>${total}</strong> filas encontradas · ` +
+    `<strong style="color:var(--green)">${selected}</strong> seleccionadas para importar · ` +
+    (dups > 0 ? `<strong style="color:var(--amber)">${dups}</strong> duplicados · ` : '') +
+    (errors > 0 ? `<strong style="color:var(--red)">${errors}</strong> con errores` : '');
+}
+
+function toggleAllImport(checked) {
+  importRows.forEach((item, idx) => {
+    if (item.errors.length === 0) {
+      item.selected = checked;
+      const cb = document.querySelectorAll('#import-tbody input[type=checkbox]')[idx];
+      if (cb && !cb.disabled) cb.checked = checked;
+    }
+  });
+  updateImportSummary();
+}
+
+async function confirmImport() {
+  const toImport = importRows.filter(r => r.selected && r.errors.length === 0);
+  if (toImport.length === 0) { toast('No hay filas seleccionadas'); return; }
+
+  const batch = toImport.map(({ row }) => ({
+    id:           uid(),
+    type:         row.tipo,
+    date:         row.fecha,
+    billing_date: null,
+    desc:         row.descripcion,
+    category:     row.categoria,
+    currency:     row.moneda,
+    amount:       parseFloat(row.monto),
+    payment:      row.medio_pago,
+    card_id:      null,
+    cuotas:       1,
+    cuota_num:    1,
+    parent_id:    null,
+    total_amount: null,
+  }));
+
+  const btn = document.getElementById('import-confirm-btn');
+  btn.textContent = 'Importando...';
+  btn.disabled = true;
+
+  try {
+    const created = await API.post('/api/transactions/batch', batch);
+    transactions.push(...created.map(normTx));
+    closeModal('modal-import');
+    resetImport();
+    toast(`${created.length} transacciones importadas ✓`);
+    refreshAll();
+  } catch(e) {
+    toast('Error al importar: ' + e.message);
+  } finally {
+    btn.textContent = '↑ Importar seleccionadas';
+    btn.disabled = false;
+  }
 }
 
 // ---- THEME ----
