@@ -185,7 +185,7 @@
   .chart-container { position: relative; width: 100%; }
 
   /* Import / Export */
-  .import-preview { max-height: 320px; overflow-y: auto; margin-top: 12px; font-size: 12px; }
+  .import-preview { max-height: calc(60vh - 80px); overflow-y: auto; margin-top: 12px; font-size: 12px; }
   .import-preview table { width: 100%; border-collapse: collapse; }
   .import-preview th { position: sticky; top: 0; background: var(--surface); padding: 6px 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); border-bottom: 1px solid var(--border); }
   .import-preview td { padding: 6px 8px; border-bottom: 1px solid var(--surface2); }
@@ -193,6 +193,10 @@
   .import-row-dup td { color: var(--amber); }
   .import-row-err { background: var(--red-light); }
   .import-row-err td { color: var(--red); }
+  .import-cell-edit { width:100%; border:none; background:transparent; font-family:var(--font-body); font-size:12px; color:var(--text); padding:0; outline:none; }
+  .import-cell-edit:focus { background:var(--surface2); border-radius:3px; padding:1px 4px; }
+  .import-preview td select { width:100%; border:none; background:transparent; font-family:var(--font-body); font-size:12px; color:var(--text); padding:0; outline:none; cursor:pointer; }
+  .import-preview td select:focus { background:var(--surface2); }
   .import-summary { font-size: 12px; color: var(--text2); margin-top: 10px; padding: 8px 12px; background: var(--surface2); border-radius: var(--radius-sm); }
   .export-radio-item { display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; transition:background 0.15s; margin-bottom:6px; }
   .export-radio-item:hover { background:var(--bg); }
@@ -1036,7 +1040,7 @@
 
 <!-- MODAL: Importar CSV -->
 <div class="modal-overlay" id="modal-import">
-  <div class="modal" style="width:640px;">
+  <div class="modal" style="width:860px;max-width:96vw;">
     <div class="modal-title">Importar transacciones</div>
     <div id="import-step-upload">
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
@@ -2407,34 +2411,71 @@ function previewCSV(input) {
       importRows.push({ row, errors, dup, selected: errors.length === 0 });
     }
 
-    // Render preview table
-    const tbody = document.getElementById('import-tbody');
-    tbody.innerHTML = importRows.map((item, idx) => {
-      const { row, errors, dup, selected } = item;
-      const rowClass = errors.length > 0 ? 'import-row-err' : dup ? 'import-row-dup' : '';
-      const status = errors.length > 0
-        ? '⚠ ' + errors[0]
-        : dup ? '⚠ Duplicado' : '✓ Ok';
-      const disabled = errors.length > 0 ? 'disabled' : '';
-      return `<tr class="${rowClass}">
-        <td><input type="checkbox" ${selected?'checked':''} ${disabled}
-            onchange="importRows[${idx}].selected=this.checked; updateImportSummary()"></td>
-        <td>${escapeHtml(row.fecha)}</td>
-        <td>${escapeHtml(row.descripcion)}</td>
-        <td>${escapeHtml(row.categoria)}</td>
-        <td>${row.tipo==='income'?'Ingreso':'Gasto'}</td>
-        <td>${escapeHtml(row.medio_pago)}</td>
-        <td>${escapeHtml(row.moneda)}</td>
-        <td style="text-align:right;font-weight:500;">${fmt(parseFloat(row.monto)||0, row.moneda)}</td>
-        <td style="white-space:nowrap;">${status}</td>
-      </tr>`;
-    }).join('');
+    // Render preview table with inline editing
+    renderImportTable();
 
     document.getElementById('import-preview-wrap').style.display = 'block';
     document.getElementById('import-confirm-btn').style.display = 'inline-flex';
     updateImportSummary();
   };
   reader.readAsText(file);
+}
+
+function renderImportTable() {
+  const CATS = ['Alimentación','Transporte','Salud','Entretenimiento','Ropa','Educación','Hogar','Servicios','Sueldo','Freelance','Otro'];
+  const tbody = document.getElementById('import-tbody');
+  tbody.innerHTML = importRows.map((item, idx) => {
+    const { row, errors, dup } = item;
+    // Revalidate to get current state
+    const errs = validateRow(row, idx);
+    const isDup = errs.length === 0 && isDuplicate(row);
+    item.errors = errs;
+    item.dup = isDup;
+    if (errs.length > 0) item.selected = false;
+    const rowClass = errs.length > 0 ? 'import-row-err' : isDup ? 'import-row-dup' : '';
+    const status = errs.length > 0 ? '⚠ ' + errs[0] : isDup ? '⚠ Dup' : '✓';
+    const statusColor = errs.length > 0 ? 'var(--red)' : isDup ? 'var(--amber)' : 'var(--green)';
+    const catOptions = CATS.map(c => `<option value="${c}" ${row.categoria===c?'selected':''}>${c}</option>`).join('');
+    const tipoOptions = `<option value="expense" ${row.tipo==='expense'?'selected':''}>Gasto</option><option value="income" ${row.tipo==='income'?'selected':''}>Ingreso</option>`;
+    const medioOptions = ['cash','debit','credit','none'].map(m => `<option value="${m}" ${row.medio_pago===m?'selected':''}>${m}</option>`).join('');
+    const monedaOptions = ['ARS','USD'].map(m => `<option value="${m}" ${row.moneda===m?'selected':''}>${m}</option>`).join('');
+    return `<tr class="${rowClass}" id="irow-${idx}">
+      <td><input type="checkbox" ${item.selected?'checked':''} ${errs.length>0?'disabled':''}
+          onchange="importRows[${idx}].selected=this.checked; updateImportSummary()"></td>
+      <td><input class="import-cell-edit" type="date" value="${escapeHtml(row.fecha)}"
+          onchange="importRows[${idx}].row.fecha=this.value; revalidateRow(${idx})"></td>
+      <td><input class="import-cell-edit" type="text" value="${escapeHtml(row.descripcion)}" style="min-width:120px;"
+          onchange="importRows[${idx}].row.descripcion=this.value; revalidateRow(${idx})"></td>
+      <td><select onchange="importRows[${idx}].row.categoria=this.value; revalidateRow(${idx})">${catOptions}</select></td>
+      <td><select onchange="importRows[${idx}].row.tipo=this.value; revalidateRow(${idx})">${tipoOptions}</select></td>
+      <td><select onchange="importRows[${idx}].row.medio_pago=this.value; revalidateRow(${idx})">${medioOptions}</select></td>
+      <td><select onchange="importRows[${idx}].row.moneda=this.value; revalidateRow(${idx})">${monedaOptions}</select></td>
+      <td><input class="import-cell-edit" type="number" value="${parseFloat(row.monto)||''}" style="min-width:70px;text-align:right;"
+          onchange="importRows[${idx}].row.monto=this.value; revalidateRow(${idx})"></td>
+      <td style="white-space:nowrap;font-weight:500;color:${statusColor};">${status}</td>
+    </tr>`;
+  }).join('');
+}
+
+function revalidateRow(idx) {
+  const item = importRows[idx];
+  const errs = validateRow(item.row, idx);
+  const isDup = errs.length === 0 && isDuplicate(item.row);
+  item.errors = errs;
+  item.dup = isDup;
+  item.selected = errs.length === 0;
+  // Update just this row's class and status
+  const tr = document.getElementById('irow-' + idx);
+  if (!tr) return;
+  tr.className = errs.length > 0 ? 'import-row-err' : isDup ? 'import-row-dup' : '';
+  const statusCell = tr.querySelector('td:last-child');
+  if (statusCell) {
+    statusCell.style.color = errs.length > 0 ? 'var(--red)' : isDup ? 'var(--amber)' : 'var(--green)';
+    statusCell.textContent = errs.length > 0 ? '⚠ ' + errs[0] : isDup ? '⚠ Dup' : '✓';
+  }
+  const cb = tr.querySelector('input[type=checkbox]');
+  if (cb) { cb.disabled = errs.length > 0; cb.checked = item.selected; }
+  updateImportSummary();
 }
 
 function updateImportSummary() {
