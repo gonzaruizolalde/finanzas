@@ -170,7 +170,7 @@
   .currency-usd { background: #e8f5e9; color: #2e7d32; }
 
   /* Toast */
-  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; padding: 12px 18px; border-radius: var(--radius-sm); font-size: 13px; z-index: 9999; opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; }
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1A1814; color: #F7F5F0; padding: 12px 18px; border-radius: var(--radius-sm); font-size: 13px; z-index: 9999; opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translateY(0); }
 
   /* Responsive helpers */
@@ -183,6 +183,12 @@
 
   /* Chart container */
   .chart-container { position: relative; width: 100%; }
+
+  /* Sortable table headers */
+  .th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+  .th-sort:hover { color: var(--text2); }
+  .sort-icon { font-size: 10px; margin-left: 3px; opacity: 0.5; }
+  .sort-icon.active { opacity: 1; color: var(--accent); }
 
   /* Import / Export */
   .import-preview { max-height: calc(60vh - 80px); overflow-y: auto; margin-top: 12px; font-size: 12px; }
@@ -696,13 +702,13 @@
           <table>
             <thead>
               <tr>
-                <th>Fecha</th>
+                <th class="th-sort" onclick="sortTx('date')">Fecha <span class="sort-icon" id="sort-date">↕</span></th>
                 <th>Descripción</th>
-                <th>Categoría</th>
+                <th class="th-sort" onclick="sortTx('category')">Categoría <span class="sort-icon" id="sort-category">↕</span></th>
                 <th>Medio</th>
                 <th>Moneda</th>
                 <th>Tipo</th>
-                <th style="text-align:right">Monto</th>
+                <th class="th-sort" onclick="sortTx('amount')" style="text-align:right">Monto <span class="sort-icon" id="sort-amount">↕</span></th>
                 <th></th>
               </tr>
             </thead>
@@ -1163,6 +1169,8 @@ let currentCatFilter = '';
 let chartCat, chartMonthly, chartProj;
 let dolarRates = {};
 let selectedRate = 'Blue';
+let txSortField = 'date';
+let txSortDir = 'desc'; // 'asc' | 'desc'
 
 // ---- AUTH ----
 function showLoginScreen() {
@@ -2219,6 +2227,16 @@ function renderDashboard() {
 }
 
 // ---- TRANSACTIONS ----
+
+function sortTx(field) {
+  if (txSortField === field) {
+    txSortDir = txSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    txSortField = field;
+    txSortDir = field === 'amount' ? 'desc' : 'desc';
+  }
+  renderTx();
+}
 function renderTx() {
   const txs = getMonthTx(currentMonth, currentYear);
 
@@ -2229,7 +2247,27 @@ function renderTx() {
     + allCats.map(c => `<div class="chip ${currentCatFilter===c?'active':''}" onclick="filterCat('${c}', this)">${escapeHtml(c)}</div>`).join('');
 
   const filtered = currentCatFilter ? txs.filter(t => t.category === currentCatFilter) : txs;
-  filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+  // Sort
+  filtered.sort((a, b) => {
+    let valA, valB;
+    if (txSortField === 'date') {
+      valA = new Date(a.date); valB = new Date(b.date);
+    } else if (txSortField === 'amount') {
+      valA = a.amount; valB = b.amount;
+    } else if (txSortField === 'category') {
+      valA = a.category; valB = b.category;
+    }
+    if (valA < valB) return txSortDir === 'asc' ? -1 : 1;
+    if (valA > valB) return txSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+  // Update sort icons
+  ['date','category','amount'].forEach(f => {
+    const el = document.getElementById('sort-' + f);
+    if (!el) return;
+    el.textContent = txSortField === f ? (txSortDir === 'asc' ? '↑' : '↓') : '↕';
+    el.classList.toggle('active', txSortField === f);
+  });
 
   const tbody = document.getElementById('tx-tbody');
   const empty = document.getElementById('tx-empty');
@@ -2788,7 +2826,8 @@ function renderImportTable() {
     const rowClass = errs.length > 0 ? 'import-row-err' : isDup ? 'import-row-dup' : '';
     const status = errs.length > 0 ? '⚠ ' + errs[0] : isDup ? '⚠ Dup' : '✓';
     const statusColor = errs.length > 0 ? 'var(--red)' : isDup ? 'var(--amber)' : 'var(--green)';
-    const catOptions = CATS.map(c => `<option value="${c}" ${row.categoria===c?'selected':''}>${c}</option>`).join('');
+    const allCatsForRow = CATS.includes(row.categoria) ? CATS : [...CATS, row.categoria];
+    const catOptions = allCatsForRow.map(c => `<option value="${c}" ${row.categoria===c?'selected':''}>${c}</option>`).join('');
     const tipoOptions = `<option value="expense" ${row.tipo==='expense'?'selected':''}>Gasto</option><option value="income" ${row.tipo==='income'?'selected':''}>Ingreso</option>`;
     const medioOptions = ['cash','debit','credit','none'].map(m => `<option value="${m}" ${row.medio_pago===m?'selected':''}>${m}</option>`).join('');
     const monedaOptions = ['ARS','USD'].map(m => `<option value="${m}" ${row.moneda===m?'selected':''}>${m}</option>`).join('');
