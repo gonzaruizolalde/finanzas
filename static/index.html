@@ -1267,14 +1267,16 @@ function convertToUSD(arsAmount) {
 }
 
 async function loadAll() {
-  [transactions, budgets, goals, cards] = await Promise.all([
+  [transactions, budgets, goals, cards, userCategories] = await Promise.all([
     API.get('/api/transactions'),
     API.get('/api/budgets'),
     API.get('/api/goals'),
     API.get('/api/cards'),
+    API.get('/api/categories'),
   ]);
-  transactions = transactions.map(normTx);
-  cards = cards.map(normCard);
+  transactions = (transactions || []).map(normTx);
+  cards = (cards || []).map(normCard);
+  userCategories = userCategories || [];
 }
 
 function normCard(c) {
@@ -2291,7 +2293,7 @@ function handleNewCat(selectId, wrapId) {
   }
 }
 
-function confirmNewCat(selectId, inputId, wrapId) {
+async function confirmNewCat(selectId, inputId, wrapId) {
   const sel   = document.getElementById(selectId);
   const input = document.getElementById(inputId);
   const wrap  = document.getElementById(wrapId);
@@ -2301,17 +2303,28 @@ function confirmNewCat(selectId, inputId, wrapId) {
     wrap.style.display = 'none';
     return;
   }
-  // Add to select if not already there
-  const exists = [...sel.options].some(o => o.value === name);
-  if (!exists) {
-    const opt = document.createElement('option');
-    opt.value = name; opt.textContent = name;
-    // Insert before the "__new__" option
-    const newOpt = [...sel.options].find(o => o.value === '__new__');
-    sel.insertBefore(opt, newOpt);
-  }
+  // Guardar en el backend
+  await saveExtraCat(name);
+  // Agregar a TODOS los selects de categoría
+  addCatToSelects(name);
   sel.value = name;
   wrap.style.display = 'none';
+  toast(`Categoría "${name}" creada ✓`);
+  refreshCategorySelects();
+}
+
+function addCatToSelects(name) {
+  ['tx-category', 'budget-cat'].forEach(id => {
+    const s = document.getElementById(id);
+    if (!s) return;
+    const exists = [...s.options].some(o => o.value === name);
+    if (!exists) {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      const newOpt = [...s.options].find(o => o.value === '__new__');
+      s.insertBefore(opt, newOpt);
+    }
+  });
 }
 
 // Populate selects with user's existing categories (called after loadAll)
@@ -2340,13 +2353,29 @@ function refreshCategorySelects() {
 
 const CSV_HEADERS = ['fecha','descripcion','categoria','tipo','medio_pago','moneda','monto'];
 const BASE_CATS = ['Alimentación','Transporte','Salud','Entretenimiento','Ropa','Educación','Hogar','Servicios','Sueldo','Freelance','Otro'];
+let userCategories = []; // categorías custom del usuario, cargadas desde el backend
 
-// Devuelve todas las categorías: base + las que el usuario ya tiene cargadas
+// Devuelve todas las categorías: base + custom del usuario
 function getAllCats() {
-  const userCats = [...new Set(transactions.map(t => t.category))];
   const merged = [...BASE_CATS];
-  userCats.forEach(c => { if (!merged.includes(c)) merged.push(c); });
+  [...userCategories.map(c => c.name), ...transactions.map(t => t.category)].forEach(c => {
+    if (c && !merged.includes(c)) merged.push(c);
+  });
   return merged;
+}
+
+// Guarda una categoría nueva en el backend
+async function saveExtraCat(name) {
+  name = (name || '').trim();
+  if (!name || getAllCats().includes(name)) return;
+  try {
+    const created = await API.post('/api/categories', { name });
+    if (created && !userCategories.some(c => c.name === created.name)) {
+      userCategories.push(created);
+    }
+  } catch(e) {
+    console.warn('No se pudo guardar categoría:', e.message);
+  }
 }
 
 // Parsea montos en cualquier formato:
@@ -2528,9 +2557,22 @@ function validateRow(row, idx) {
   row.fecha = normalizeFecha(row.fecha);
   if (!row.fecha) errors.push('fecha inválida (usar DD/MM/YYYY o YYYY-MM-DD)');
   if (!row.descripcion) errors.push('descripción vacía');
-  if (!getAllCats().includes(row.categoria)) errors.push('categoría inválida');
+  // Normalizar categoría: buscar match case-insensitive
+  const catTrimmed = (row.categoria || '').trim();
+  const catMatch = getAllCats().find(c => c.toLowerCase() === catTrimmed.toLowerCase());
+  if (catMatch) {
+    row.categoria = catMatch; // normalizar al nombre canónico
+  } else if (catTrimmed) {
+    row.categoria = catTrimmed; // categoría nueva — aceptar y persistir al confirmar importación
+  } else {
+    errors.push('categoría vacía');
+  }
+  row.tipo = (row.tipo || '').trim().toLowerCase();
   if (!VALID_TIPOS.includes(row.tipo)) errors.push('tipo inválido (income/expense)');
-  if (!VALID_MEDIOS.includes(row.medio_pago)) errors.push('medio inválido');
+  row.medio_pago = (row.medio_pago || '').trim().toLowerCase();
+  if (!VALID_MEDIOS.includes(row.medio_pago)) errors.push('medio inválido (cash/debit/credit/none)');
+  // Normalizar moneda a mayúsculas
+  row.moneda = (row.moneda || '').trim().toUpperCase();
   if (!VALID_MONEDAS.includes(row.moneda)) errors.push('moneda inválida (ARS/USD)');
   if (isNaN(parseMonto(row.monto)) || parseMonto(row.monto) <= 0) errors.push('monto inválido');
   return errors;
@@ -2685,6 +2727,9 @@ async function confirmImport() {
   try {
     const created = await API.post('/api/transactions/batch', batch);
     transactions.push(...created.map(normTx));
+    // Persistir categorías nuevas que vinieron del CSV (solo las que no son base)
+    const newCats = [...new Set(toImport.map(r => r.row.categoria))].filter(c => !BASE_CATS.includes(c));
+    await Promise.all(newCats.map(c => saveExtraCat(c)));
     closeModal('modal-import');
     resetImport();
     toast(`${created.length} transacciones importadas ✓`);
