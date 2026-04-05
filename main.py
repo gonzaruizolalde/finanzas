@@ -7,13 +7,14 @@ from datetime import datetime, timedelta
 import os
 import httpx
 
-from database import create_tables, get_db, Transaction, Budget, Goal, Card, User
+from database import create_tables, get_db, Transaction, Budget, Goal, Card, User, Category
 from schemas import (
     CardCreate, CardOut, CardUpdate,
     TransactionCreate, TransactionOut, TransactionUpdate,
     BudgetCreate, BudgetOut,
     GoalCreate, GoalOut, GoalDeposit,
     UserRegister, UserLogin, UserOut,
+    CategoryCreate, CategoryOut,
 )
 from auth import hash_password, verify_password, create_token, get_current_user
 
@@ -27,6 +28,45 @@ app = FastAPI(title="Finanzas Personales API", version="2.0.0")
 @app.get("/", response_class=FileResponse)
 def serve_frontend():
     return FileResponse("static/index.html")
+
+
+# ── Categories ───────────────────────────────────────────────────────────────
+
+@app.get("/api/categories", response_model=List[CategoryOut])
+def get_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(Category).filter(Category.user_id == current_user.id).all()
+
+
+@app.post("/api/categories", response_model=CategoryOut)
+def create_category(data: CategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    name = data.name.strip()
+    if not name:
+        raise HTTPException(400, "El nombre no puede estar vacío")
+    # Evitar duplicados para este usuario (case-insensitive)
+    existing = db.query(Category).filter(
+        Category.user_id == current_user.id,
+        Category.name.ilike(name)
+    ).first()
+    if existing:
+        return existing
+    cat = Category(user_id=current_user.id, name=name)
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+
+@app.delete("/api/categories/{category_id}")
+def delete_category(category_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    cat = db.query(Category).filter(
+        Category.id == category_id,
+        Category.user_id == current_user.id
+    ).first()
+    if not cat:
+        raise HTTPException(404, "Categoría no encontrada")
+    db.delete(cat)
+    db.commit()
+    return {"ok": True}
 
 
 # ── Dólar ────────────────────────────────────────────────────────────────────

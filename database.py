@@ -83,6 +83,13 @@ class Goal(Base):
     user_id  = Column(String, nullable=True)       # nullable para no romper datos existentes
 
 
+class Category(Base):
+    __tablename__ = "categories"
+    id      = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    name    = Column(String, nullable=False)
+
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
 

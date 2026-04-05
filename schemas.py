@@ -115,3 +115,16 @@ class GoalOut(GoalCreate):
 
 class GoalDeposit(BaseModel):
     amount: float
+
+
+# ── Categories ────────────────────────────────────────────────────────────────
+
+class CategoryCreate(BaseModel):
+    name: str
+
+class CategoryOut(BaseModel):
+    id:      str
+    name:    str
+    user_id: str
+    class Config:
+        from_attributes = True
