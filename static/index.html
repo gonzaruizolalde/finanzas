@@ -1061,7 +1061,7 @@
 
 <!-- MODAL: Importar CSV -->
 <div class="modal-overlay" id="modal-import">
-  <div class="modal" style="width:860px;max-width:96vw;">
+  <div class="modal" style="width:1140px;max-width:96vw;">
     <div class="modal-title">Importar transacciones</div>
     <div id="import-step-upload">
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
@@ -2349,24 +2349,67 @@ function getAllCats() {
   return merged;
 }
 
-// Parsea montos con formato argentino: "83.000" o "83,000" → 83000
+// Parsea montos en cualquier formato:
+// "83,333.33" (inglés/Excel) → 83333.33
+// "83.333,33" (argentino)    → 83333.33
+// "83.000"    (miles arg)    → 83000
+// "83,5"      (decimal arg)  → 83.5
+// "83333.33"  (plain)        → 83333.33
+// Normaliza fecha a YYYY-MM-DD aceptando DD/MM/YYYY o YYYY-MM-DD
+function normalizeFecha(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return `${y}-${m}-${d}`;
+  }
+  // D/M/YYYY
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  return null;
+}
+
 function parseMonto(val) {
   if (val === null || val === undefined || val === '') return NaN;
-  let s = String(val).trim();
-  // Si tiene punto Y coma: "1.234,56" → quitar punto, reemplazar coma
-  if (s.includes('.') && s.includes(',')) {
-    s = s.replace(/\./g, '').replace(',', '.');
-  } else if (s.includes('.') && !s.includes(',')) {
-    // "83.000" podría ser miles → si hay exactamente 3 dígitos después del punto, es miles
-    const parts = s.split('.');
-    if (parts.length === 2 && parts[1].length === 3) {
-      s = s.replace('.', ''); // "83000"
+  let s = String(val).trim().replace(/^"(.*)"$/, '$1'); // quitar comillas si las hay
+  if (!s) return NaN;
+
+  const hasDot   = s.includes('.');
+  const hasComma = s.includes(',');
+
+  if (hasDot && hasComma) {
+    // Determinar cuál es separador de miles y cuál de decimales
+    const lastDot   = s.lastIndexOf('.');
+    const lastComma = s.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      // "83.333,33" → coma es decimal, punto es miles
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // "83,333.33" → punto es decimal, coma es miles (formato Excel/inglés)
+      s = s.replace(/,/g, '');
     }
-    // si no (ej "83.5"), lo deja como decimal normal
-  } else if (s.includes(',') && !s.includes('.')) {
-    // "83,5" → decimal con coma
-    s = s.replace(',', '.');
+  } else if (hasComma && !hasDot) {
+    // Solo coma: puede ser miles "83,000" o decimal "83,5"
+    const parts = s.split(',');
+    if (parts.length === 2 && parts[1].length === 3 && parts[1].match(/^\d{3}$/)) {
+      s = s.replace(',', ''); // "83,000" → 83000
+    } else {
+      s = s.replace(',', '.'); // "83,5" → 83.5
+    }
+  } else if (hasDot && !hasComma) {
+    // Solo punto: puede ser miles "83.000" o decimal "83.5"
+    const parts = s.split('.');
+    if (parts.length === 2 && parts[1].length === 3 && parts[1].match(/^\d{3}$/)) {
+      s = s.replace('.', ''); // "83.000" → 83000
+    }
+    // "83.5" → queda igual
   }
+
   return parseFloat(s);
 }
 
@@ -2404,13 +2447,13 @@ function getExportTxs() {
 function txToCSVRow(t) {
   const medioLabel = t.payment === 'credit' ? 'credit' : t.payment === 'debit' ? 'debit' : t.payment === 'cash' ? 'cash' : 'none';
   return [
-    t.date,
+    t.date,                                              // YYYY-MM-DD — Excel no lo toca
     '"' + (t.desc || '').replace(/"/g, '""') + '"',
     t.category,
     t.type,
     medioLabel,
     t.currency,
-    t.amount
+    Number(t.amount).toFixed(2)                          // plain number, sin formato
   ].join(',');
 }
 
@@ -2482,7 +2525,8 @@ function isDuplicate(row) {
 
 function validateRow(row, idx) {
   const errors = [];
-  if (!row.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(row.fecha)) errors.push('fecha inválida');
+  row.fecha = normalizeFecha(row.fecha);
+  if (!row.fecha) errors.push('fecha inválida (usar DD/MM/YYYY o YYYY-MM-DD)');
   if (!row.descripcion) errors.push('descripción vacía');
   if (!getAllCats().includes(row.categoria)) errors.push('categoría inválida');
   if (!VALID_TIPOS.includes(row.tipo)) errors.push('tipo inválido (income/expense)');
