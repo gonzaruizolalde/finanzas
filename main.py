@@ -55,7 +55,7 @@ def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
     db.commit()
 
     # Obtener URL base del request
-    reset_url = f"https://project-qe219.vercel.app/reset-password?token={token}"
+    reset_url = f"https://project-qe219.vercel.app/?token={token}"
 
     # Enviar email via Resend
     resend_key = os.getenv("RESEND_API_KEY")
