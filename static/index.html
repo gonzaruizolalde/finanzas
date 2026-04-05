@@ -2536,18 +2536,24 @@ async function saveExtraCat(name) {
 // Normaliza fecha a YYYY-MM-DD aceptando DD/MM/YYYY o YYYY-MM-DD
 function normalizeFecha(val) {
   if (!val) return null;
-  const s = String(val).trim();
-  // YYYY-MM-DD
+  let s = String(val).trim();
+  // Quitar prefijo Excel ="..." o ="..."
+  s = s.replace(/^="?(.*?)"?$/, '$1').trim();
+  // YYYY-MM-DD (formato interno — prioridad máxima)
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // DD/MM/YYYY
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-    const [d, m, y] = s.split('/');
-    return `${y}-${m}-${d}`;
-  }
-  // D/M/YYYY
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const [d, m, y] = s.split('/');
-    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  // DD/MM/YYYY o D/M/YYYY — formato argentino/Excel
+  // IMPORTANTE: en Argentina DD/MM/YYYY → día primero, mes segundo
+  const partsSlash = s.split('/');
+  if (partsSlash.length === 3) {
+    const [a, b, c] = partsSlash;
+    if (c.length === 4) {
+      // DD/MM/YYYY → día=a, mes=b, año=c
+      return `${c}-${b.padStart(2,'0')}-${a.padStart(2,'0')}`;
+    }
+    if (a.length === 4) {
+      // YYYY/MM/DD
+      return `${a}-${b.padStart(2,'0')}-${c.padStart(2,'0')}`;
+    }
   }
   return null;
 }
@@ -2625,13 +2631,13 @@ function getExportTxs() {
 function txToCSVRow(t) {
   const medioLabel = t.payment === 'credit' ? 'credit' : t.payment === 'debit' ? 'debit' : t.payment === 'cash' ? 'cash' : 'none';
   return [
-    t.date,                                              // YYYY-MM-DD — Excel no lo toca
+    '="' + t.date + '"',   // prefijo = fuerza a Excel a tratarlo como texto, no fecha
     '"' + (t.desc || '').replace(/"/g, '""') + '"',
     t.category,
     t.type,
     medioLabel,
     t.currency,
-    Number(t.amount).toFixed(2)                          // plain number, sin formato
+    Number(t.amount).toFixed(2)
   ].join(',');
 }
 
