@@ -6,8 +6,9 @@ from typing import List
 from datetime import datetime, timedelta
 import os
 import httpx
+import secrets
 
-from database import create_tables, get_db, Transaction, Budget, Goal, Card, User, Category
+from database import create_tables, get_db, Transaction, Budget, Goal, Card, User, Category, PasswordReset
 from schemas import (
     CardCreate, CardOut, CardUpdate,
     TransactionCreate, TransactionOut, TransactionUpdate,
@@ -15,6 +16,7 @@ from schemas import (
     GoalCreate, GoalOut, GoalDeposit,
     UserRegister, UserLogin, UserOut,
     CategoryCreate, CategoryOut,
+    ForgotPasswordRequest, ResetPasswordRequest,
 )
 from auth import hash_password, verify_password, create_token, get_current_user
 
@@ -28,6 +30,98 @@ app = FastAPI(title="Finanzas Personales API", version="2.0.0")
 @app.get("/", response_class=FileResponse)
 def serve_frontend():
     return FileResponse("static/index.html")
+
+
+# ── Password Reset ───────────────────────────────────────────────────────────
+
+@app.post("/api/auth/forgot-password")
+def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
+    # Siempre responder OK para no revelar si el email existe
+    if not user:
+        return {"ok": True}
+
+    # Invalidar tokens anteriores
+    db.query(PasswordReset).filter(
+        PasswordReset.user_id == user.id,
+        PasswordReset.used == "false"
+    ).update({"used": "true"})
+
+    # Crear token nuevo
+    token = secrets.token_urlsafe(32)
+    expires = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+    reset = PasswordReset(user_id=user.id, token=token, expires_at=expires)
+    db.add(reset)
+    db.commit()
+
+    # Obtener URL base del request
+    reset_url = f"https://project-qe219.vercel.app/reset-password?token={token}"
+
+    # Enviar email via Resend
+    resend_key = os.getenv("RESEND_API_KEY")
+    if resend_key:
+        try:
+            httpx.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                json={
+                    "from": "Mis Finanzas <onboarding@resend.dev>",
+                    "to": [user.email],
+                    "subject": "Restablecer contraseña — Mis Finanzas",
+                    "html": f"""
+                    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
+                        <h2 style="font-size:22px;margin-bottom:8px;">Restablecer contraseña</h2>
+                        <p style="color:#666;margin-bottom:24px;">
+                            Recibimos una solicitud para restablecer la contraseña de tu cuenta.
+                            El enlace expira en 1 hora.
+                        </p>
+                        <a href="{reset_url}"
+                           style="display:inline-block;background:#1a1a1a;color:#fff;
+                                  padding:12px 24px;border-radius:8px;text-decoration:none;
+                                  font-weight:500;">
+                            Restablecer contraseña
+                        </a>
+                        <p style="color:#999;font-size:12px;margin-top:24px;">
+                            Si no solicitaste este cambio, podés ignorar este email.
+                        </p>
+                    </div>
+                    """
+                },
+                timeout=10
+            )
+        except Exception as e:
+            print(f"Error enviando email: {e}")
+
+    return {"ok": True}
+
+
+@app.post("/api/auth/reset-password")
+def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    reset = db.query(PasswordReset).filter(
+        PasswordReset.token == data.token,
+        PasswordReset.used == "false"
+    ).first()
+
+    if not reset:
+        raise HTTPException(400, "Token inválido o ya utilizado")
+
+    # Verificar expiración
+    if datetime.fromisoformat(reset.expires_at) < datetime.utcnow():
+        raise HTTPException(400, "El token expiró. Solicitá un nuevo enlace.")
+
+    if len(data.password) < 8:
+        raise HTTPException(400, "La contraseña debe tener al menos 8 caracteres")
+
+    # Actualizar contraseña
+    user = db.query(User).filter(User.id == reset.user_id).first()
+    if not user:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    user.password_hash = hash_password(data.password)
+    reset.used = "true"
+    db.commit()
+
+    return {"ok": True}
 
 
 # ── Categories ───────────────────────────────────────────────────────────────

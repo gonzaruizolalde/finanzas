@@ -90,6 +90,15 @@ class Category(Base):
     name    = Column(String, nullable=False)
 
 
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    id         = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id    = Column(String, nullable=False)
+    token      = Column(String, nullable=False, unique=True)
+    expires_at = Column(String, nullable=False)
+    used       = Column(String, default="false")
+
+
 def create_tables():
     Base.metadata.create_all(bind=engine)
 

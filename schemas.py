@@ -128,3 +128,13 @@ class CategoryOut(BaseModel):
     user_id: str
     class Config:
         from_attributes = True
+
+
+# ── Password Reset ────────────────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token:    str
+    password: str
