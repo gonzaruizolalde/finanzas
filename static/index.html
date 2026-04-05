@@ -310,12 +310,18 @@
     .fab:active { transform: scale(0.93); box-shadow: 0 2px 8px rgba(42,122,90,0.3); }
   }
 
+  /* Mobile tx actions row */
+  .mobile-tx-actions { display: none; }
+
   /* Desktop: FAB hidden, show inline button instead */
   .fab { display: none; }
   .dash-add-btn { display: inline-flex; }
+  .tx-desktop-btn { display: inline-flex; }
 
   @media (max-width: 640px) {
     .dash-add-btn { display: none; }
+    .tx-desktop-btn { display: none; }
+    .mobile-tx-actions { display: flex; gap: 8px; margin-bottom: 12px; }
   }
 
   /* Theme toggle */
@@ -614,14 +620,19 @@
             <span id="month-label-2"></span>
             <button onclick="changeMonth(1)">›</button>
           </div>
-          <button class="btn" onclick="openExportModal()">↓ Exportar</button>
-          <button class="btn" onclick="openModal('modal-import')">↑ Importar</button>
-          <button class="btn btn-primary" onclick="openNewTx()">+ Nueva</button>
+          <button class="btn tx-desktop-btn" onclick="openExportModal()">↓ Exportar</button>
+          <button class="btn tx-desktop-btn" onclick="openModal('modal-import')">↑ Importar</button>
+          <button class="btn btn-primary dash-add-btn" onclick="openNewTx()">+ Nueva</button>
         </div>
       </div>
 
       <div class="chip-row" id="cat-filter">
         <div class="chip active" onclick="filterCat('', this)">Todas</div>
+      </div>
+
+      <div class="mobile-tx-actions">
+        <button class="btn btn-sm" onclick="openExportModal()">↓ Exportar CSV</button>
+        <button class="btn btn-sm" onclick="openModal('modal-import')">↑ Importar CSV</button>
       </div>
 
       <div class="card">
