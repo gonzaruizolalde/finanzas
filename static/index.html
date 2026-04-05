@@ -184,6 +184,35 @@
   /* Chart container */
   .chart-container { position: relative; width: 100%; }
 
+  /* Import / Export */
+  .import-preview { max-height: calc(60vh - 80px); overflow-y: auto; margin-top: 12px; font-size: 12px; }
+  .import-preview table { width: 100%; border-collapse: collapse; }
+  .import-preview th { position: sticky; top: 0; background: var(--surface); padding: 6px 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); border-bottom: 1px solid var(--border); }
+  .import-preview td { padding: 6px 8px; border-bottom: 1px solid var(--surface2); }
+  .import-row-dup { background: var(--amber-light); }
+  .import-row-dup td { color: var(--amber); }
+  .import-row-err { background: var(--red-light); }
+  .import-row-err td { color: var(--red); }
+  .import-cell-edit { width:100%; border:none; background:transparent; font-family:var(--font-body); font-size:12px; color:var(--text); padding:0; outline:none; }
+  .import-cell-edit:focus { background:var(--surface2); border-radius:3px; padding:1px 4px; }
+  .import-preview td select { width:100%; border:none; background:transparent; font-family:var(--font-body); font-size:12px; color:var(--text); padding:0; outline:none; cursor:pointer; }
+  .import-preview td select:focus { background:var(--surface2); }
+  .import-summary { font-size: 12px; color: var(--text2); margin-top: 10px; padding: 8px 12px; background: var(--surface2); border-radius: var(--radius-sm); }
+  .export-radio-item { display:flex; align-items:flex-start; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; transition:background 0.15s; margin-bottom:6px; }
+  .export-radio-item:hover { background:var(--bg); }
+  .export-radio-item input[type=radio] { margin-top:2px; flex-shrink:0; accent-color:var(--accent); width:16px; height:16px; cursor:pointer; }
+
+  /* Dólar bar */
+  .dolar-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .dolar-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 12px; display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; transition:background 0.15s; }
+  .dolar-item:hover { background:var(--bg); }
+  .dolar-item.selected { border-color:var(--accent); background:var(--green-light); }
+  .dolar-nombre { font-weight:500; color:var(--text2); }
+  .dolar-compra { color:var(--green); font-weight:500; }
+  .dolar-venta  { color:var(--red);   font-weight:500; }
+  .dolar-sep    { color:var(--text3); font-size:10px; }
+  .dolar-loading { font-size:12px; color:var(--text3); padding:8px 0; }
+
   /* Bottom nav mobile */
   .bottom-nav { display: none; }
 
@@ -281,12 +310,18 @@
     .fab:active { transform: scale(0.93); box-shadow: 0 2px 8px rgba(42,122,90,0.3); }
   }
 
+  /* Mobile tx actions row */
+  .mobile-tx-actions { display: none; }
+
   /* Desktop: FAB hidden, show inline button instead */
   .fab { display: none; }
   .dash-add-btn { display: inline-flex; }
+  .tx-desktop-btn { display: inline-flex; }
 
   @media (max-width: 640px) {
     .dash-add-btn { display: none; }
+    .tx-desktop-btn { display: none; }
+    .mobile-tx-actions { display: flex; gap: 8px; margin-bottom: 12px; }
   }
 
   /* Theme toggle */
@@ -425,11 +460,67 @@
     </div>
     <button class="btn btn-primary" style="width:100%; margin-top:8px; padding:10px;"
             id="login-btn" onclick="submitLogin()">Ingresar</button>
-    <div style="text-align:center; margin-top:16px; font-size:12px; color:var(--text3);">
+    <div style="text-align:center; margin-top:12px; font-size:12px; color:var(--text3);">
+      <span style="color:var(--accent); cursor:pointer;"
+            onclick="showForgotPassword()">¿Olvidaste tu contraseña?</span>
+    </div>
+    <div style="text-align:center; margin-top:8px; font-size:12px; color:var(--text3);">
       ¿No tenés cuenta?
       <span style="color:var(--accent); cursor:pointer; font-weight:500;"
             onclick="submitRegister()">Registrarse</span>
     </div>
+  </div>
+</div>
+
+<!-- Forgot password screen -->
+<div id="forgot-screen" style="display:none; position:fixed; inset:0; background:var(--bg);
+     z-index:9999; align-items:center; justify-content:center;">
+  <div style="width:360px; background:var(--surface); border:1px solid var(--border);
+       border-radius:var(--radius); padding:36px; box-shadow:var(--shadow-md);">
+    <h2 style="font-family:var(--font-display); font-size:22px; font-weight:400; margin-bottom:6px;">Olvidé mi contraseña</h2>
+    <p style="font-size:12px; color:var(--text3); margin-bottom:20px;">
+      Te enviamos un link para restablecer tu contraseña.
+    </p>
+    <div id="forgot-error" style="display:none; color:var(--red); font-size:12px;
+         margin-bottom:14px; padding:10px 12px; background:var(--red-light); border-radius:var(--radius-sm);"></div>
+    <div id="forgot-success" style="display:none; color:var(--green); font-size:12px;
+         margin-bottom:14px; padding:10px 12px; background:var(--green-light); border-radius:var(--radius-sm);"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="forgot-email" placeholder="tu@email.com" autocomplete="email"
+             onkeydown="if(event.key==='Enter') submitForgotPassword()">
+    </div>
+    <button class="btn btn-primary" style="width:100%; margin-top:8px; padding:10px;"
+            id="forgot-btn" onclick="submitForgotPassword()">Enviar link</button>
+    <div style="text-align:center; margin-top:16px; font-size:12px; color:var(--text3);">
+      <span style="color:var(--accent); cursor:pointer;" onclick="showLoginScreen()">← Volver al login</span>
+    </div>
+  </div>
+</div>
+
+<!-- Reset password screen -->
+<div id="reset-screen" style="display:none; position:fixed; inset:0; background:var(--bg);
+     z-index:9999; align-items:center; justify-content:center;">
+  <div style="width:360px; background:var(--surface); border:1px solid var(--border);
+       border-radius:var(--radius); padding:36px; box-shadow:var(--shadow-md);">
+    <h2 style="font-family:var(--font-display); font-size:22px; font-weight:400; margin-bottom:6px;">Nueva contraseña</h2>
+    <p style="font-size:12px; color:var(--text3); margin-bottom:20px;">
+      Ingresá tu nueva contraseña.
+    </p>
+    <div id="reset-error" style="display:none; color:var(--red); font-size:12px;
+         margin-bottom:14px; padding:10px 12px; background:var(--red-light); border-radius:var(--radius-sm);"></div>
+    <div class="form-group">
+      <label>Nueva contraseña</label>
+      <input type="password" id="reset-password" placeholder="Mínimo 8 caracteres"
+             onkeydown="if(event.key==='Enter') submitResetPassword()">
+    </div>
+    <div class="form-group">
+      <label>Confirmar contraseña</label>
+      <input type="password" id="reset-password-confirm" placeholder="Repetí la contraseña"
+             onkeydown="if(event.key==='Enter') submitResetPassword()">
+    </div>
+    <button class="btn btn-primary" style="width:100%; margin-top:8px; padding:10px;"
+            id="reset-btn" onclick="submitResetPassword()">Guardar contraseña</button>
   </div>
 </div>
 
@@ -522,6 +613,8 @@
         </div>
       </div>
 
+      <div id="dolar-bar" class="dolar-bar"><span class="dolar-loading">Cargando cotizaciones...</span></div>
+
       <div class="grid-4">
         <div class="card">
           <div class="card-title">Ingresos</div>
@@ -537,6 +630,7 @@
           <div class="card-title">Balance</div>
           <div class="card-value" id="dash-balance">$0</div>
           <div class="card-sub" id="dash-balance-usd"></div>
+          <div class="card-sub" id="dash-balance-unified" style="margin-top:2px;"></div>
         </div>
         <div class="card">
           <div class="card-title">Cuotas pendientes</div>
@@ -582,12 +676,19 @@
             <span id="month-label-2"></span>
             <button onclick="changeMonth(1)">›</button>
           </div>
-          <button class="btn btn-primary" onclick="openNewTx()">+ Nueva</button>
+          <button class="btn tx-desktop-btn" onclick="openExportModal()">↓ Exportar</button>
+          <button class="btn tx-desktop-btn" onclick="openModal('modal-import')">↑ Importar</button>
+          <button class="btn btn-primary dash-add-btn" onclick="openNewTx()">+ Nueva</button>
         </div>
       </div>
 
       <div class="chip-row" id="cat-filter">
         <div class="chip active" onclick="filterCat('', this)">Todas</div>
+      </div>
+
+      <div class="mobile-tx-actions">
+        <button class="btn btn-sm" onclick="openExportModal()">↓ Exportar CSV</button>
+        <button class="btn btn-sm" onclick="openModal('modal-import')">↑ Importar CSV</button>
       </div>
 
       <div class="card">
@@ -802,7 +903,7 @@
     <div class="form-row">
       <div class="form-group">
         <label>Categoría</label>
-        <select id="tx-category">
+        <select id="tx-category" onchange="handleNewCat('tx-category','tx-new-cat-wrap')">
           <option value="Alimentación">Alimentación</option>
           <option value="Transporte">Transporte</option>
           <option value="Salud">Salud</option>
@@ -814,7 +915,12 @@
           <option value="Sueldo">Sueldo</option>
           <option value="Freelance">Freelance</option>
           <option value="Otro">Otro</option>
+          <option value="__new__">+ Nueva categoría...</option>
         </select>
+        <div id="tx-new-cat-wrap" style="display:none;margin-top:6px;">
+          <input type="text" id="tx-new-cat" placeholder="Nombre de la categoría"
+                 onblur="confirmNewCat('tx-category','tx-new-cat','tx-new-cat-wrap')">
+        </div>
       </div>
       <div class="form-group">
         <label>Moneda</label>
@@ -869,7 +975,7 @@
     <div class="modal-title">Nuevo presupuesto</div>
     <div class="form-group">
       <label>Categoría</label>
-      <select id="budget-cat">
+      <select id="budget-cat" onchange="handleNewCat('budget-cat','budget-new-cat-wrap')">
         <option value="Alimentación">Alimentación</option>
         <option value="Transporte">Transporte</option>
         <option value="Salud">Salud</option>
@@ -879,7 +985,12 @@
         <option value="Hogar">Hogar</option>
         <option value="Servicios">Servicios</option>
         <option value="Otro">Otro</option>
+        <option value="__new__">+ Nueva categoría...</option>
       </select>
+      <div id="budget-new-cat-wrap" style="display:none;margin-top:6px;">
+        <input type="text" id="budget-new-cat" placeholder="Nombre de la categoría"
+               onblur="confirmNewCat('budget-cat','budget-new-cat','budget-new-cat-wrap')">
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -955,6 +1066,93 @@
   </div>
 </div>
 
+<!-- MODAL: Exportar CSV -->
+<div class="modal-overlay" id="modal-export">
+  <div class="modal">
+    <div class="modal-title">Exportar transacciones</div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">
+
+      <div class="export-radio-item" onclick="document.getElementById('er-month').click()">
+        <input type="radio" id="er-month" name="export-range" value="month" checked onchange="toggleExportRange()">
+        <div>
+          <div style="font-size:13px;font-weight:500;">Mes actual</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:1px;" id="export-month-label"></div>
+        </div>
+      </div>
+
+      <div class="export-radio-item" onclick="document.getElementById('er-range').click()">
+        <input type="radio" id="er-range" name="export-range" value="range" onchange="toggleExportRange()">
+        <div style="width:100%;">
+          <div style="font-size:13px;font-weight:500;">Rango de fechas</div>
+          <div id="export-range-inputs" style="display:none;margin-top:8px;">
+            <div style="display:flex;gap:8px;">
+              <div class="form-group" style="margin:0;flex:1;">
+                <label>Desde</label>
+                <input type="date" id="export-from" onclick="event.stopPropagation()">
+              </div>
+              <div class="form-group" style="margin:0;flex:1;">
+                <label>Hasta</label>
+                <input type="date" id="export-to" onclick="event.stopPropagation()">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="export-radio-item" onclick="document.getElementById('er-all').click()">
+        <input type="radio" id="er-all" name="export-range" value="all" onchange="toggleExportRange()">
+        <div>
+          <div style="font-size:13px;font-weight:500;">Todo el historial</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:1px;" id="export-all-count"></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-export')">Cancelar</button>
+      <button class="btn btn-primary" onclick="doExportCSV()">↓ Descargar CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Importar CSV -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal" style="width:1140px;max-width:96vw;">
+    <div class="modal-title">Importar transacciones</div>
+    <div id="import-step-upload">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+        El archivo debe estar en el mismo formato que exporta la app.<br>
+        Columnas: <code>fecha, descripcion, categoria, tipo, medio_pago, moneda, monto</code>
+      </p>
+      <div class="form-group">
+        <label>Archivo CSV</label>
+        <input type="file" id="import-file" accept=".csv" onchange="previewCSV(this)">
+      </div>
+      <a href="#" onclick="downloadTemplate(); return false;"
+         style="font-size:12px;color:var(--accent);">↓ Descargar plantilla de ejemplo</a>
+      <div id="import-preview-wrap" style="display:none;">
+        <div id="import-summary" class="import-summary"></div>
+        <div class="import-preview">
+          <table>
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="import-check-all" onchange="toggleAllImport(this.checked)"></th>
+                <th>Fecha</th><th>Descripción</th><th>Categoría</th>
+                <th>Tipo</th><th>Medio</th><th>Moneda</th><th>Monto</th><th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="import-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-import'); resetImport()">Cancelar</button>
+      <button class="btn btn-primary" id="import-confirm-btn" style="display:none;" onclick="confirmImport()">↑ Importar seleccionadas</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -963,6 +1161,8 @@ let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let currentCatFilter = '';
 let chartCat, chartMonthly, chartProj;
+let dolarRates = {};
+let selectedRate = 'Blue';
 
 // ---- AUTH ----
 function showLoginScreen() {
@@ -982,6 +1182,99 @@ function showLoginError(msg) {
   const el = document.getElementById('login-error');
   el.textContent = msg;
   el.style.display = 'block';
+}
+
+// ── FORGOT / RESET PASSWORD ──────────────────────────────────────────────────
+
+function showForgotPassword() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('forgot-screen').style.display = 'flex';
+  document.getElementById('forgot-email').value = '';
+  document.getElementById('forgot-error').style.display = 'none';
+  document.getElementById('forgot-success').style.display = 'none';
+}
+
+async function submitForgotPassword() {
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!email) { showForgotError('Ingresá tu email'); return; }
+  const btn = document.getElementById('forgot-btn');
+  btn.textContent = 'Enviando...'; btn.disabled = true;
+  try {
+    await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    // Siempre mostrar éxito (no revelar si el email existe)
+    document.getElementById('forgot-error').style.display = 'none';
+    const ok = document.getElementById('forgot-success');
+    ok.textContent = 'Si el email está registrado, vas a recibir un link en los próximos minutos.';
+    ok.style.display = 'block';
+    btn.textContent = 'Enviado ✓';
+  } catch(e) {
+    showForgotError('Error al enviar. Intentá de nuevo.');
+    btn.textContent = 'Enviar link'; btn.disabled = false;
+  }
+}
+
+function showForgotError(msg) {
+  const el = document.getElementById('forgot-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// Reset password — se activa si hay ?token= en la URL
+function checkResetToken() {
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('token');
+  if (!token) return false;
+  // Guardar token y mostrar pantalla de reset
+  window._resetToken = token;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('reset-screen').style.display = 'flex';
+  return true;
+}
+
+async function submitResetPassword() {
+  const password = document.getElementById('reset-password').value;
+  const confirm  = document.getElementById('reset-password-confirm').value;
+  const errEl    = document.getElementById('reset-error');
+
+  if (password.length < 8) {
+    errEl.textContent = 'La contraseña debe tener al menos 8 caracteres';
+    errEl.style.display = 'block'; return;
+  }
+  if (password !== confirm) {
+    errEl.textContent = 'Las contraseñas no coinciden';
+    errEl.style.display = 'block'; return;
+  }
+
+  const btn = document.getElementById('reset-btn');
+  btn.textContent = 'Guardando...'; btn.disabled = true;
+
+  try {
+    const r = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: window._resetToken, password })
+    });
+    if (!r.ok) {
+      const err = await r.json();
+      errEl.textContent = err.detail || 'Error al restablecer';
+      errEl.style.display = 'block';
+      btn.textContent = 'Guardar contraseña'; btn.disabled = false;
+      return;
+    }
+    // Éxito — limpiar URL y mostrar login
+    window.history.replaceState({}, '', '/');
+    document.getElementById('reset-screen').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-error').style.display = 'none';
+    toast('Contraseña actualizada. Podés iniciar sesión.');
+  } catch(e) {
+    errEl.textContent = 'Error de conexión. Intentá de nuevo.';
+    errEl.style.display = 'block';
+    btn.textContent = 'Guardar contraseña'; btn.disabled = false;
+  }
 }
 
 async function submitLogin() {
@@ -1072,15 +1365,67 @@ let budgets = [];
 let goals = [];
 let cards = [];
 
+// ---- DÓLAR ----
+async function loadDolar() {
+  try {
+    const data = await API.get('/api/dolar');
+    if (!data) return;
+    dolarRates = {};
+    data.forEach(d => { dolarRates[d.nombre] = d; });
+    renderDolarBar(data);
+    renderDashboard(); // re-render con cotizaciones cargadas
+  } catch(e) {
+    const el = document.getElementById('dolar-bar');
+    if (el) el.innerHTML = '<span class="dolar-loading">No se pudo cargar cotización</span>';
+  }
+}
+
+const DOLAR_TIPOS = ['Oficial', 'Blue', 'MEP', 'Contado con liquidación'];
+
+function renderDolarBar(data) {
+  const el = document.getElementById('dolar-bar');
+  if (!el) return;
+  const filtered = data.filter(r => DOLAR_TIPOS.includes(r.nombre));
+  el.innerHTML = filtered.map(r => `
+    <div class="dolar-item ${selectedRate === r.nombre ? 'selected' : ''}"
+         onclick="selectRate('${r.nombre}')">
+      <span class="dolar-nombre">${r.nombre === 'Contado con liquidación' ? 'CCL' : r.nombre}</span>
+      <span class="dolar-compra">$${r.compra}</span>
+      <span class="dolar-sep">/</span>
+      <span class="dolar-venta">$${r.venta}</span>
+    </div>`).join('');
+}
+
+function selectRate(nombre) {
+  selectedRate = nombre;
+  const rates = Object.values(dolarRates).filter(r => DOLAR_TIPOS.includes(r.nombre));
+  renderDolarBar(rates);
+  renderDashboard();
+}
+
+function convertToARS(usdAmount) {
+  const rate = dolarRates[selectedRate];
+  if (!rate || !rate.venta) return null;
+  return usdAmount * rate.venta;
+}
+
+function convertToUSD(arsAmount) {
+  const rate = dolarRates[selectedRate];
+  if (!rate || !rate.venta) return null;
+  return arsAmount / rate.venta;
+}
+
 async function loadAll() {
-  [transactions, budgets, goals, cards] = await Promise.all([
+  [transactions, budgets, goals, cards, userCategories] = await Promise.all([
     API.get('/api/transactions'),
     API.get('/api/budgets'),
     API.get('/api/goals'),
     API.get('/api/cards'),
+    API.get('/api/categories'),
   ]);
-  transactions = transactions.map(normTx);
-  cards = cards.map(normCard);
+  transactions = (transactions || []).map(normTx);
+  cards = (cards || []).map(normCard);
+  userCategories = userCategories || [];
 }
 
 function normCard(c) {
@@ -1754,6 +2099,7 @@ function refreshAll() {
   const sub = document.getElementById('dash-subtitle');
   if (sub) sub.textContent = label;
 
+  refreshCategorySelects();
   renderDashboard();
   renderTx();
   renderProjection();
@@ -1782,6 +2128,18 @@ function renderDashboard() {
   balEl.textContent = fmt(balARS);
   balEl.className = 'card-value ' + (balARS >= 0 ? 'positive' : 'negative');
   document.getElementById('dash-balance-usd').textContent = balUSD !== 0 ? fmt(balUSD,'USD') : '';
+  // Balance unificado ARS+USD
+  const usdEnARS = convertToARS(balUSD);
+  const unifiedEl = document.getElementById('dash-balance-unified');
+  if (unifiedEl) {
+    if (usdEnARS !== null && balUSD !== 0) {
+      const total = balARS + usdEnARS;
+      const rate = dolarRates[selectedRate];
+      unifiedEl.textContent = `≈ ${fmt(total)} · Dólar ${selectedRate === 'Contado con liquidación' ? 'CCL' : selectedRate} $${rate?.venta || '—'}`;
+    } else {
+      unifiedEl.textContent = '';
+    }
+  }
 
   // Cuotas next 3 months
   let cuotasARS = 0;
@@ -2070,6 +2428,469 @@ function renderGoals() {
   }).join('');
 }
 
+// ---- CATEGORÍAS DINÁMICAS ----
+
+function handleNewCat(selectId, wrapId) {
+  const sel = document.getElementById(selectId);
+  const wrap = document.getElementById(wrapId);
+  if (sel.value === '__new__') {
+    wrap.style.display = 'block';
+    const input = wrap.querySelector('input');
+    if (input) { input.value = ''; input.focus(); }
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+async function confirmNewCat(selectId, inputId, wrapId) {
+  const sel   = document.getElementById(selectId);
+  const input = document.getElementById(inputId);
+  const wrap  = document.getElementById(wrapId);
+  const name  = (input?.value || '').trim();
+  if (!name) {
+    sel.value = 'Otro';
+    wrap.style.display = 'none';
+    return;
+  }
+  // Guardar en el backend
+  await saveExtraCat(name);
+  // Agregar a TODOS los selects de categoría
+  addCatToSelects(name);
+  sel.value = name;
+  wrap.style.display = 'none';
+  toast(`Categoría "${name}" creada ✓`);
+  refreshCategorySelects();
+}
+
+function addCatToSelects(name) {
+  ['tx-category', 'budget-cat'].forEach(id => {
+    const s = document.getElementById(id);
+    if (!s) return;
+    const exists = [...s.options].some(o => o.value === name);
+    if (!exists) {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      const newOpt = [...s.options].find(o => o.value === '__new__');
+      s.insertBefore(opt, newOpt);
+    }
+  });
+}
+
+// Populate selects with user's existing categories (called after loadAll)
+function refreshCategorySelects() {
+  const cats = getAllCats();
+  ['tx-category', 'budget-cat'].forEach(selectId => {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const current = sel.value;
+    // Keep base options + __new__, add any extra user cats
+    cats.forEach(cat => {
+      const exists = [...sel.options].some(o => o.value === cat);
+      if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = cat; opt.textContent = cat;
+        const newOpt = [...sel.options].find(o => o.value === '__new__');
+        sel.insertBefore(opt, newOpt);
+      }
+    });
+    // Restore selection if still valid
+    if ([...sel.options].some(o => o.value === current)) sel.value = current;
+  });
+}
+
+// ---- EXPORT CSV ----
+
+const CSV_HEADERS = ['fecha','descripcion','categoria','tipo','medio_pago','moneda','monto'];
+const BASE_CATS = ['Alimentación','Transporte','Salud','Entretenimiento','Ropa','Educación','Hogar','Servicios','Sueldo','Freelance','Otro'];
+let userCategories = []; // categorías custom del usuario, cargadas desde el backend
+
+// Devuelve todas las categorías: base + custom del usuario
+function getAllCats() {
+  const merged = [...BASE_CATS];
+  [...userCategories.map(c => c.name), ...transactions.map(t => t.category)].forEach(c => {
+    if (c && !merged.includes(c)) merged.push(c);
+  });
+  return merged;
+}
+
+// Guarda una categoría nueva en el backend
+async function saveExtraCat(name) {
+  name = (name || '').trim();
+  if (!name || getAllCats().includes(name)) return;
+  try {
+    const created = await API.post('/api/categories', { name });
+    if (created && !userCategories.some(c => c.name === created.name)) {
+      userCategories.push(created);
+    }
+  } catch(e) {
+    console.warn('No se pudo guardar categoría:', e.message);
+  }
+}
+
+// Parsea montos en cualquier formato:
+// "83,333.33" (inglés/Excel) → 83333.33
+// "83.333,33" (argentino)    → 83333.33
+// "83.000"    (miles arg)    → 83000
+// "83,5"      (decimal arg)  → 83.5
+// "83333.33"  (plain)        → 83333.33
+// Normaliza fecha a YYYY-MM-DD aceptando DD/MM/YYYY o YYYY-MM-DD
+function normalizeFecha(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return `${y}-${m}-${d}`;
+  }
+  // D/M/YYYY
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  return null;
+}
+
+function parseMonto(val) {
+  if (val === null || val === undefined || val === '') return NaN;
+  let s = String(val).trim().replace(/^"(.*)"$/, '$1'); // quitar comillas si las hay
+  if (!s) return NaN;
+
+  const hasDot   = s.includes('.');
+  const hasComma = s.includes(',');
+
+  if (hasDot && hasComma) {
+    // Determinar cuál es separador de miles y cuál de decimales
+    const lastDot   = s.lastIndexOf('.');
+    const lastComma = s.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      // "83.333,33" → coma es decimal, punto es miles
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // "83,333.33" → punto es decimal, coma es miles (formato Excel/inglés)
+      s = s.replace(/,/g, '');
+    }
+  } else if (hasComma && !hasDot) {
+    // Solo coma: puede ser miles "83,000" o decimal "83,5"
+    const parts = s.split(',');
+    if (parts.length === 2 && parts[1].length === 3 && parts[1].match(/^\d{3}$/)) {
+      s = s.replace(',', ''); // "83,000" → 83000
+    } else {
+      s = s.replace(',', '.'); // "83,5" → 83.5
+    }
+  } else if (hasDot && !hasComma) {
+    // Solo punto: puede ser miles "83.000" o decimal "83.5"
+    const parts = s.split('.');
+    if (parts.length === 2 && parts[1].length === 3 && parts[1].match(/^\d{3}$/)) {
+      s = s.replace('.', ''); // "83.000" → 83000
+    }
+    // "83.5" → queda igual
+  }
+
+  return parseFloat(s);
+}
+
+const VALID_CATS = BASE_CATS; // backward compat
+const VALID_TIPOS = ['income','expense'];
+const VALID_MEDIOS = ['cash','debit','credit','none'];
+const VALID_MONEDAS = ['ARS','USD'];
+
+function toggleExportRange() {
+  const val = document.querySelector('input[name="export-range"]:checked').value;
+  document.getElementById('export-range-inputs').style.display = val === 'range' ? 'flex' : 'none';
+}
+
+function openExportModal() {
+  document.getElementById('export-month-label').textContent = MONTHS[currentMonth] + ' ' + currentYear;
+  document.getElementById('export-all-count').textContent = transactions.length + ' transacciones en total';
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('export-from').value = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-01`;
+  document.getElementById('export-to').value = today;
+  // reset to first option
+  document.getElementById('er-month').checked = true;
+  document.getElementById('export-range-inputs').style.display = 'none';
+  openModal('modal-export');
+}
+
+function getExportTxs() {
+  const val = document.querySelector('input[name="export-range"]:checked').value;
+  if (val === 'month') return getMonthTx(currentMonth, currentYear);
+  if (val === 'all') return transactions;
+  const from = document.getElementById('export-from').value;
+  const to   = document.getElementById('export-to').value;
+  return transactions.filter(t => t.date >= from && t.date <= to);
+}
+
+function txToCSVRow(t) {
+  const medioLabel = t.payment === 'credit' ? 'credit' : t.payment === 'debit' ? 'debit' : t.payment === 'cash' ? 'cash' : 'none';
+  return [
+    t.date,                                              // YYYY-MM-DD — Excel no lo toca
+    '"' + (t.desc || '').replace(/"/g, '""') + '"',
+    t.category,
+    t.type,
+    medioLabel,
+    t.currency,
+    Number(t.amount).toFixed(2)                          // plain number, sin formato
+  ].join(',');
+}
+
+function doExportCSV() {
+  const txs = getExportTxs();
+  if (txs.length === 0) { toast('No hay transacciones para exportar'); return; }
+  const rows = [CSV_HEADERS.join(','), ...txs.map(txToCSVRow)];
+  const blob = new Blob([rows.join(String.fromCharCode(10))], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const val  = document.querySelector('input[name="export-range"]:checked').value;
+  const name = val === 'month'
+    ? `finanzas_${MONTHS[currentMonth].toLowerCase()}_${currentYear}.csv`
+    : val === 'all' ? 'finanzas_historial.csv'
+    : `finanzas_${document.getElementById('export-from').value}_${document.getElementById('export-to').value}.csv`;
+  a.href = url; a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+  closeModal('modal-export');
+  toast(`${txs.length} transacciones exportadas ✓`);
+}
+
+// ---- IMPORT CSV ----
+
+let importRows = [];
+
+function downloadTemplate() {
+  const example = [
+    CSV_HEADERS.join(','),
+    '2024-03-15,Supermercado,Alimentación,expense,cash,ARS,15000',
+    '2024-03-20,Netflix,Entretenimiento,expense,credit,ARS,2500',
+    '2024-03-01,Sueldo,Sueldo,income,none,ARS,350000',
+  ].join(String.fromCharCode(10));
+  const blob = new Blob([example], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'plantilla_finanzas.csv';
+  a.click();
+}
+
+function resetImport() {
+  importRows = [];
+  document.getElementById('import-file').value = '';
+  document.getElementById('import-preview-wrap').style.display = 'none';
+  document.getElementById('import-confirm-btn').style.display = 'none';
+  document.getElementById('import-tbody').innerHTML = '';
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; continue; }
+    cur += c;
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function isDuplicate(row) {
+  return transactions.some(t =>
+    t.date === row.fecha &&
+    t.desc.toLowerCase() === row.descripcion.toLowerCase() &&
+    Math.abs(t.amount - parseMonto(row.monto)) < 0.01
+  );
+}
+
+function validateRow(row, idx) {
+  const errors = [];
+  row.fecha = normalizeFecha(row.fecha);
+  if (!row.fecha) errors.push('fecha inválida (usar DD/MM/YYYY o YYYY-MM-DD)');
+  if (!row.descripcion) errors.push('descripción vacía');
+  // Normalizar categoría: buscar match case-insensitive
+  const catTrimmed = (row.categoria || '').trim();
+  const catMatch = getAllCats().find(c => c.toLowerCase() === catTrimmed.toLowerCase());
+  if (catMatch) {
+    row.categoria = catMatch; // normalizar al nombre canónico
+  } else if (catTrimmed) {
+    row.categoria = catTrimmed; // categoría nueva — aceptar y persistir al confirmar importación
+  } else {
+    errors.push('categoría vacía');
+  }
+  row.tipo = (row.tipo || '').trim().toLowerCase();
+  if (!VALID_TIPOS.includes(row.tipo)) errors.push('tipo inválido (income/expense)');
+  row.medio_pago = (row.medio_pago || '').trim().toLowerCase();
+  if (!VALID_MEDIOS.includes(row.medio_pago)) errors.push('medio inválido (cash/debit/credit/none)');
+  // Normalizar moneda a mayúsculas
+  row.moneda = (row.moneda || '').trim().toUpperCase();
+  if (!VALID_MONEDAS.includes(row.moneda)) errors.push('moneda inválida (ARS/USD)');
+  if (isNaN(parseMonto(row.monto)) || parseMonto(row.monto) <= 0) errors.push('monto inválido');
+  return errors;
+}
+
+function previewCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(String.fromCharCode(10)).map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) { toast('El archivo está vacío o no tiene datos'); return; }
+
+    const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/\s/g,'_'));
+    const expectedHeaders = CSV_HEADERS;
+    const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
+    if (missingHeaders.length > 0) {
+      toast('Columnas faltantes: ' + missingHeaders.join(', '));
+      return;
+    }
+
+    importRows = [];
+    let validCount = 0, dupCount = 0, errCount = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const vals = parseCSVLine(lines[i]);
+      const row = {};
+      headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+      const errors = validateRow(row, i);
+      const dup = errors.length === 0 && isDuplicate(row);
+      if (errors.length > 0) errCount++;
+      else if (dup) dupCount++;
+      else validCount++;
+      importRows.push({ row, errors, dup, selected: errors.length === 0 });
+    }
+
+    // Render preview table with inline editing
+    renderImportTable();
+
+    document.getElementById('import-preview-wrap').style.display = 'block';
+    document.getElementById('import-confirm-btn').style.display = 'inline-flex';
+    updateImportSummary();
+  };
+  reader.readAsText(file);
+}
+
+function renderImportTable() {
+  const CATS = getAllCats();
+  const tbody = document.getElementById('import-tbody');
+  tbody.innerHTML = importRows.map((item, idx) => {
+    const { row, errors, dup } = item;
+    // Revalidate to get current state
+    const errs = validateRow(row, idx);
+    const isDup = errs.length === 0 && isDuplicate(row);
+    item.errors = errs;
+    item.dup = isDup;
+    if (errs.length > 0) item.selected = false;
+    const rowClass = errs.length > 0 ? 'import-row-err' : isDup ? 'import-row-dup' : '';
+    const status = errs.length > 0 ? '⚠ ' + errs[0] : isDup ? '⚠ Dup' : '✓';
+    const statusColor = errs.length > 0 ? 'var(--red)' : isDup ? 'var(--amber)' : 'var(--green)';
+    const catOptions = CATS.map(c => `<option value="${c}" ${row.categoria===c?'selected':''}>${c}</option>`).join('');
+    const tipoOptions = `<option value="expense" ${row.tipo==='expense'?'selected':''}>Gasto</option><option value="income" ${row.tipo==='income'?'selected':''}>Ingreso</option>`;
+    const medioOptions = ['cash','debit','credit','none'].map(m => `<option value="${m}" ${row.medio_pago===m?'selected':''}>${m}</option>`).join('');
+    const monedaOptions = ['ARS','USD'].map(m => `<option value="${m}" ${row.moneda===m?'selected':''}>${m}</option>`).join('');
+    return `<tr class="${rowClass}" id="irow-${idx}">
+      <td><input type="checkbox" ${item.selected?'checked':''} ${errs.length>0?'disabled':''}
+          onchange="importRows[${idx}].selected=this.checked; updateImportSummary()"></td>
+      <td><input class="import-cell-edit" type="date" value="${escapeHtml(row.fecha)}"
+          onchange="importRows[${idx}].row.fecha=this.value; revalidateRow(${idx})"></td>
+      <td><input class="import-cell-edit" type="text" value="${escapeHtml(row.descripcion)}" style="min-width:120px;"
+          onchange="importRows[${idx}].row.descripcion=this.value; revalidateRow(${idx})"></td>
+      <td><select onchange="importRows[${idx}].row.categoria=this.value; revalidateRow(${idx})">${catOptions}</select></td>
+      <td><select onchange="importRows[${idx}].row.tipo=this.value; revalidateRow(${idx})">${tipoOptions}</select></td>
+      <td><select onchange="importRows[${idx}].row.medio_pago=this.value; revalidateRow(${idx})">${medioOptions}</select></td>
+      <td><select onchange="importRows[${idx}].row.moneda=this.value; revalidateRow(${idx})">${monedaOptions}</select></td>
+      <td><input class="import-cell-edit" type="number" value="${parseMonto(row.monto)||''}" style="min-width:70px;text-align:right;"
+          onchange="importRows[${idx}].row.monto=this.value; revalidateRow(${idx})"></td>
+      <td style="white-space:nowrap;font-weight:500;color:${statusColor};">${status}</td>
+    </tr>`;
+  }).join('');
+}
+
+function revalidateRow(idx) {
+  const item = importRows[idx];
+  const errs = validateRow(item.row, idx);
+  const isDup = errs.length === 0 && isDuplicate(item.row);
+  item.errors = errs;
+  item.dup = isDup;
+  item.selected = errs.length === 0;
+  // Update just this row's class and status
+  const tr = document.getElementById('irow-' + idx);
+  if (!tr) return;
+  tr.className = errs.length > 0 ? 'import-row-err' : isDup ? 'import-row-dup' : '';
+  const statusCell = tr.querySelector('td:last-child');
+  if (statusCell) {
+    statusCell.style.color = errs.length > 0 ? 'var(--red)' : isDup ? 'var(--amber)' : 'var(--green)';
+    statusCell.textContent = errs.length > 0 ? '⚠ ' + errs[0] : isDup ? '⚠ Dup' : '✓';
+  }
+  const cb = tr.querySelector('input[type=checkbox]');
+  if (cb) { cb.disabled = errs.length > 0; cb.checked = item.selected; }
+  updateImportSummary();
+}
+
+function updateImportSummary() {
+  const total    = importRows.length;
+  const selected = importRows.filter(r => r.selected).length;
+  const dups     = importRows.filter(r => r.dup).length;
+  const errors   = importRows.filter(r => r.errors.length > 0).length;
+  document.getElementById('import-summary').innerHTML =
+    `<strong>${total}</strong> filas encontradas · ` +
+    `<strong style="color:var(--green)">${selected}</strong> seleccionadas para importar · ` +
+    (dups > 0 ? `<strong style="color:var(--amber)">${dups}</strong> duplicados · ` : '') +
+    (errors > 0 ? `<strong style="color:var(--red)">${errors}</strong> con errores` : '');
+}
+
+function toggleAllImport(checked) {
+  importRows.forEach((item, idx) => {
+    if (item.errors.length === 0) {
+      item.selected = checked;
+      const cb = document.querySelectorAll('#import-tbody input[type=checkbox]')[idx];
+      if (cb && !cb.disabled) cb.checked = checked;
+    }
+  });
+  updateImportSummary();
+}
+
+async function confirmImport() {
+  const toImport = importRows.filter(r => r.selected && r.errors.length === 0);
+  if (toImport.length === 0) { toast('No hay filas seleccionadas'); return; }
+
+  const batch = toImport.map(({ row }) => ({
+    id:           uid(),
+    type:         row.tipo,
+    date:         row.fecha,
+    billing_date: null,
+    desc:         row.descripcion,
+    category:     row.categoria,
+    currency:     row.moneda,
+    amount:       parseMonto(row.monto),
+    payment:      row.medio_pago,
+    card_id:      null,
+    cuotas:       1,
+    cuota_num:    1,
+    parent_id:    null,
+    total_amount: null,
+  }));
+
+  const btn = document.getElementById('import-confirm-btn');
+  btn.textContent = 'Importando...';
+  btn.disabled = true;
+
+  try {
+    const created = await API.post('/api/transactions/batch', batch);
+    transactions.push(...created.map(normTx));
+    // Persistir categorías nuevas que vinieron del CSV (solo las que no son base)
+    const newCats = [...new Set(toImport.map(r => r.row.categoria))].filter(c => !BASE_CATS.includes(c));
+    await Promise.all(newCats.map(c => saveExtraCat(c)));
+    closeModal('modal-import');
+    resetImport();
+    toast(`${created.length} transacciones importadas ✓`);
+    refreshAll();
+  } catch(e) {
+    toast('Error al importar: ' + e.message);
+  } finally {
+    btn.textContent = '↑ Importar seleccionadas';
+    btn.disabled = false;
+  }
+}
+
 // ---- THEME ----
 function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -2101,6 +2922,9 @@ async function init() {
   initCleave();
   document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('tx-date').addEventListener('change', updateBillingPreview);
+  // Verificar si hay token de reset en la URL
+  if (checkResetToken()) return;
+
   // Verificar sesión activa
   try {
     const user = await fetch('/api/auth/me').then(r => r.ok ? r.json() : null);
@@ -2110,6 +2934,7 @@ async function init() {
     await loadAll();
     document.querySelector('.main').style.opacity = '1';
     refreshAll();
+    loadDolar(); // carga asíncrona, no bloquea
   } catch(e) {
     showLoginScreen();
   }
