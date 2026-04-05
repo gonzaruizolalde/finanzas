@@ -836,7 +836,7 @@
     <div class="form-row">
       <div class="form-group">
         <label>Categoría</label>
-        <select id="tx-category">
+        <select id="tx-category" onchange="handleNewCat('tx-category','tx-new-cat-wrap')">
           <option value="Alimentación">Alimentación</option>
           <option value="Transporte">Transporte</option>
           <option value="Salud">Salud</option>
@@ -848,7 +848,12 @@
           <option value="Sueldo">Sueldo</option>
           <option value="Freelance">Freelance</option>
           <option value="Otro">Otro</option>
+          <option value="__new__">+ Nueva categoría...</option>
         </select>
+        <div id="tx-new-cat-wrap" style="display:none;margin-top:6px;">
+          <input type="text" id="tx-new-cat" placeholder="Nombre de la categoría"
+                 onblur="confirmNewCat('tx-category','tx-new-cat','tx-new-cat-wrap')">
+        </div>
       </div>
       <div class="form-group">
         <label>Moneda</label>
@@ -903,7 +908,7 @@
     <div class="modal-title">Nuevo presupuesto</div>
     <div class="form-group">
       <label>Categoría</label>
-      <select id="budget-cat">
+      <select id="budget-cat" onchange="handleNewCat('budget-cat','budget-new-cat-wrap')">
         <option value="Alimentación">Alimentación</option>
         <option value="Transporte">Transporte</option>
         <option value="Salud">Salud</option>
@@ -913,7 +918,12 @@
         <option value="Hogar">Hogar</option>
         <option value="Servicios">Servicios</option>
         <option value="Otro">Otro</option>
+        <option value="__new__">+ Nueva categoría...</option>
       </select>
+      <div id="budget-new-cat-wrap" style="display:none;margin-top:6px;">
+        <input type="text" id="budget-new-cat" placeholder="Nombre de la categoría"
+               onblur="confirmNewCat('budget-cat','budget-new-cat','budget-new-cat-wrap')">
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1927,6 +1937,7 @@ function refreshAll() {
   const sub = document.getElementById('dash-subtitle');
   if (sub) sub.textContent = label;
 
+  refreshCategorySelects();
   renderDashboard();
   renderTx();
   renderProjection();
@@ -2255,10 +2266,100 @@ function renderGoals() {
   }).join('');
 }
 
+// ---- CATEGORÍAS DINÁMICAS ----
+
+function handleNewCat(selectId, wrapId) {
+  const sel = document.getElementById(selectId);
+  const wrap = document.getElementById(wrapId);
+  if (sel.value === '__new__') {
+    wrap.style.display = 'block';
+    const input = wrap.querySelector('input');
+    if (input) { input.value = ''; input.focus(); }
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function confirmNewCat(selectId, inputId, wrapId) {
+  const sel   = document.getElementById(selectId);
+  const input = document.getElementById(inputId);
+  const wrap  = document.getElementById(wrapId);
+  const name  = (input?.value || '').trim();
+  if (!name) {
+    sel.value = 'Otro';
+    wrap.style.display = 'none';
+    return;
+  }
+  // Add to select if not already there
+  const exists = [...sel.options].some(o => o.value === name);
+  if (!exists) {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    // Insert before the "__new__" option
+    const newOpt = [...sel.options].find(o => o.value === '__new__');
+    sel.insertBefore(opt, newOpt);
+  }
+  sel.value = name;
+  wrap.style.display = 'none';
+}
+
+// Populate selects with user's existing categories (called after loadAll)
+function refreshCategorySelects() {
+  const cats = getAllCats();
+  ['tx-category', 'budget-cat'].forEach(selectId => {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const current = sel.value;
+    // Keep base options + __new__, add any extra user cats
+    cats.forEach(cat => {
+      const exists = [...sel.options].some(o => o.value === cat);
+      if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = cat; opt.textContent = cat;
+        const newOpt = [...sel.options].find(o => o.value === '__new__');
+        sel.insertBefore(opt, newOpt);
+      }
+    });
+    // Restore selection if still valid
+    if ([...sel.options].some(o => o.value === current)) sel.value = current;
+  });
+}
+
 // ---- EXPORT CSV ----
 
 const CSV_HEADERS = ['fecha','descripcion','categoria','tipo','medio_pago','moneda','monto'];
-const VALID_CATS = ['Alimentación','Transporte','Salud','Entretenimiento','Ropa','Educación','Hogar','Servicios','Sueldo','Freelance','Otro'];
+const BASE_CATS = ['Alimentación','Transporte','Salud','Entretenimiento','Ropa','Educación','Hogar','Servicios','Sueldo','Freelance','Otro'];
+
+// Devuelve todas las categorías: base + las que el usuario ya tiene cargadas
+function getAllCats() {
+  const userCats = [...new Set(transactions.map(t => t.category))];
+  const merged = [...BASE_CATS];
+  userCats.forEach(c => { if (!merged.includes(c)) merged.push(c); });
+  return merged;
+}
+
+// Parsea montos con formato argentino: "83.000" o "83,000" → 83000
+function parseMonto(val) {
+  if (val === null || val === undefined || val === '') return NaN;
+  let s = String(val).trim();
+  // Si tiene punto Y coma: "1.234,56" → quitar punto, reemplazar coma
+  if (s.includes('.') && s.includes(',')) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes('.') && !s.includes(',')) {
+    // "83.000" podría ser miles → si hay exactamente 3 dígitos después del punto, es miles
+    const parts = s.split('.');
+    if (parts.length === 2 && parts[1].length === 3) {
+      s = s.replace('.', ''); // "83000"
+    }
+    // si no (ej "83.5"), lo deja como decimal normal
+  } else if (s.includes(',') && !s.includes('.')) {
+    // "83,5" → decimal con coma
+    s = s.replace(',', '.');
+  }
+  return parseFloat(s);
+}
+
+const VALID_CATS = BASE_CATS; // backward compat
 const VALID_TIPOS = ['income','expense'];
 const VALID_MEDIOS = ['cash','debit','credit','none'];
 const VALID_MONEDAS = ['ARS','USD'];
@@ -2364,7 +2465,7 @@ function isDuplicate(row) {
   return transactions.some(t =>
     t.date === row.fecha &&
     t.desc.toLowerCase() === row.descripcion.toLowerCase() &&
-    Math.abs(t.amount - parseFloat(row.monto)) < 0.01
+    Math.abs(t.amount - parseMonto(row.monto)) < 0.01
   );
 }
 
@@ -2372,11 +2473,11 @@ function validateRow(row, idx) {
   const errors = [];
   if (!row.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(row.fecha)) errors.push('fecha inválida');
   if (!row.descripcion) errors.push('descripción vacía');
-  if (!VALID_CATS.includes(row.categoria)) errors.push('categoría inválida');
+  if (!getAllCats().includes(row.categoria)) errors.push('categoría inválida');
   if (!VALID_TIPOS.includes(row.tipo)) errors.push('tipo inválido (income/expense)');
   if (!VALID_MEDIOS.includes(row.medio_pago)) errors.push('medio inválido');
   if (!VALID_MONEDAS.includes(row.moneda)) errors.push('moneda inválida (ARS/USD)');
-  if (isNaN(parseFloat(row.monto)) || parseFloat(row.monto) <= 0) errors.push('monto inválido');
+  if (isNaN(parseMonto(row.monto)) || parseMonto(row.monto) <= 0) errors.push('monto inválido');
   return errors;
 }
 
@@ -2422,7 +2523,7 @@ function previewCSV(input) {
 }
 
 function renderImportTable() {
-  const CATS = ['Alimentación','Transporte','Salud','Entretenimiento','Ropa','Educación','Hogar','Servicios','Sueldo','Freelance','Otro'];
+  const CATS = getAllCats();
   const tbody = document.getElementById('import-tbody');
   tbody.innerHTML = importRows.map((item, idx) => {
     const { row, errors, dup } = item;
@@ -2450,7 +2551,7 @@ function renderImportTable() {
       <td><select onchange="importRows[${idx}].row.tipo=this.value; revalidateRow(${idx})">${tipoOptions}</select></td>
       <td><select onchange="importRows[${idx}].row.medio_pago=this.value; revalidateRow(${idx})">${medioOptions}</select></td>
       <td><select onchange="importRows[${idx}].row.moneda=this.value; revalidateRow(${idx})">${monedaOptions}</select></td>
-      <td><input class="import-cell-edit" type="number" value="${parseFloat(row.monto)||''}" style="min-width:70px;text-align:right;"
+      <td><input class="import-cell-edit" type="number" value="${parseMonto(row.monto)||''}" style="min-width:70px;text-align:right;"
           onchange="importRows[${idx}].row.monto=this.value; revalidateRow(${idx})"></td>
       <td style="white-space:nowrap;font-weight:500;color:${statusColor};">${status}</td>
     </tr>`;
@@ -2513,7 +2614,7 @@ async function confirmImport() {
     desc:         row.descripcion,
     category:     row.categoria,
     currency:     row.moneda,
-    amount:       parseFloat(row.monto),
+    amount:       parseMonto(row.monto),
     payment:      row.medio_pago,
     card_id:      null,
     cuotas:       1,
